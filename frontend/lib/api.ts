@@ -19,3 +19,4 @@ export type SessionOut = components["schemas"]["SessionOut"];
 export type SuggestedTargetOut = components["schemas"]["SuggestedTargetOut"];
 export type VolumePoint = components["schemas"]["VolumePoint"];
 export type BodyMetricOut = components["schemas"]["BodyMetricOut"];
+export type NutritionTargetOut = components["schemas"]["NutritionTargetOut"];
