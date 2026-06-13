@@ -1,7 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import exercises, health, plans, profile, sessions
+from app.api import (
+    body_metrics,
+    exercises,
+    health,
+    plans,
+    profile,
+    progress,
+    sessions,
+)
 from app.config import get_settings
 
 
@@ -23,6 +31,8 @@ def create_app() -> FastAPI:
         profile.router,
         plans.router,
         sessions.router,
+        progress.router,
+        body_metrics.router,
     ]
     for router in api_routers:
         app.include_router(router, prefix="/api")

@@ -194,6 +194,41 @@ export interface paths {
         patch: operations["complete_session_api_sessions__session_id__complete_patch"];
         trace?: never;
     };
+    "/api/progress/volume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Volume */
+        get: operations["volume_api_progress_volume_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/body-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Body Metrics */
+        get: operations["list_body_metrics_api_body_metrics_get"];
+        put?: never;
+        /** Create Body Metric */
+        post: operations["create_body_metric_api_body_metrics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -203,6 +238,33 @@ export interface components {
          * @enum {string}
          */
         ActivityLevel: "sedentary" | "light" | "moderate" | "active" | "very_active";
+        /** BodyMetricIn */
+        BodyMetricIn: {
+            /** Date */
+            date?: string | null;
+            /** Weight Kg */
+            weight_kg: number | string;
+            /** Body Fat Pct */
+            body_fat_pct?: number | string | null;
+            /** Waist Cm */
+            waist_cm?: number | string | null;
+        };
+        /** BodyMetricOut */
+        BodyMetricOut: {
+            /** Id */
+            id: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Weight Kg */
+            weight_kg: string;
+            /** Body Fat Pct */
+            body_fat_pct: string | null;
+            /** Waist Cm */
+            waist_cm: string | null;
+        };
         /**
          * Equipment
          * @enum {string}
@@ -460,6 +522,15 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VolumePoint */
+        VolumePoint: {
+            /** Week */
+            week: string;
+            /** Muscle */
+            muscle: string;
+            /** Volume */
+            volume: number;
         };
     };
     responses: never;
@@ -874,6 +945,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    volume_api_progress_volume_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumePoint"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_body_metrics_api_body_metrics_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BodyMetricOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_body_metric_api_body_metrics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BodyMetricIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BodyMetricOut"];
                 };
             };
             /** @description Validation Error */

@@ -17,3 +17,5 @@ export type PlanDayOut = components["schemas"]["PlanDayOut"];
 export type PlanExerciseOut = components["schemas"]["PlanExerciseOut"];
 export type SessionOut = components["schemas"]["SessionOut"];
 export type SuggestedTargetOut = components["schemas"]["SuggestedTargetOut"];
+export type VolumePoint = components["schemas"]["VolumePoint"];
+export type BodyMetricOut = components["schemas"]["BodyMetricOut"];
