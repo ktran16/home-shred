@@ -73,6 +73,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Plans */
+        get: operations["list_plans_api_plans_get"];
+        put?: never;
+        /** Create Plan */
+        post: operations["create_plan_api_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Plan */
+        get: operations["get_plan_api_plans__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{plan_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Activate Plan */
+        patch: operations["activate_plan_api_plans__plan_id__activate_patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -109,6 +161,16 @@ export interface components {
             /** Instructions */
             instructions: string[];
         };
+        /**
+         * Focus
+         * @enum {string}
+         */
+        Focus: "full_body" | "upper" | "lower" | "push" | "pull" | "legs" | "conditioning";
+        /**
+         * Goal
+         * @enum {string}
+         */
+        Goal: "shred";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -125,6 +187,81 @@ export interface components {
          * @enum {string}
          */
         MovementPattern: "horizontal_push" | "vertical_push" | "horizontal_pull" | "vertical_pull" | "squat" | "hinge" | "core" | "conditioning";
+        /** PlanCreateIn */
+        PlanCreateIn: {
+            /** @default shred */
+            goal: components["schemas"]["Goal"];
+            /** Days Per Week */
+            days_per_week: number;
+        };
+        /** PlanDayOut */
+        PlanDayOut: {
+            /** Id */
+            id: number;
+            /** Day Index */
+            day_index: number;
+            focus: components["schemas"]["Focus"];
+            /** Exercises */
+            exercises: components["schemas"]["PlanExerciseOut"][];
+        };
+        /** PlanDetailOut */
+        PlanDetailOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            goal: components["schemas"]["Goal"];
+            /** Days Per Week */
+            days_per_week: number;
+            experience_level: components["schemas"]["Level"];
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Days */
+            days: components["schemas"]["PlanDayOut"][];
+        };
+        /** PlanExerciseOut */
+        PlanExerciseOut: {
+            /** Id */
+            id: number;
+            /** Exercise Id */
+            exercise_id: number;
+            /** Order Index */
+            order_index: number;
+            /** Sets */
+            sets: number;
+            /** Target Reps Min */
+            target_reps_min: number;
+            /** Target Reps Max */
+            target_reps_max: number;
+            /** Rest Seconds */
+            rest_seconds: number;
+            /** Is Conditioning */
+            is_conditioning: boolean;
+            exercise: components["schemas"]["ExerciseOut"];
+        };
+        /** PlanSummaryOut */
+        PlanSummaryOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            goal: components["schemas"]["Goal"];
+            /** Days Per Week */
+            days_per_week: number;
+            experience_level: components["schemas"]["Level"];
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** ProfileIn */
         ProfileIn: {
             sex: components["schemas"]["Sex"];
@@ -310,6 +447,121 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_plans_api_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanSummaryOut"][];
+                };
+            };
+        };
+    };
+    create_plan_api_plans_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_api_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_plan_api_plans__plan_id__activate_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanSummaryOut"];
                 };
             };
             /** @description Validation Error */
