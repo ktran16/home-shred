@@ -125,6 +125,75 @@ export interface paths {
         patch: operations["activate_plan_api_plans__plan_id__activate_patch"];
         trace?: never;
     };
+    "/api/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sessions */
+        get: operations["list_sessions_api_sessions_get"];
+        put?: never;
+        /** Create Session */
+        post: operations["create_session_api_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Session */
+        get: operations["get_session_api_sessions__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{session_id}/sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Set */
+        post: operations["add_set_api_sessions__session_id__sets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{session_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Complete Session */
+        patch: operations["complete_session_api_sessions__session_id__complete_patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -293,11 +362,92 @@ export interface components {
              */
             updated_at: string;
         };
+        /** SessionCreateIn */
+        SessionCreateIn: {
+            /** Plan Day Id */
+            plan_day_id: number;
+            /** Date */
+            date?: string | null;
+        };
+        /** SessionOut */
+        SessionOut: {
+            /** Id */
+            id: number;
+            /** Plan Day Id */
+            plan_day_id: number | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Notes */
+            notes: string | null;
+            /** Completed */
+            completed: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Set Logs
+             * @default []
+             */
+            set_logs: components["schemas"]["SetLogOut"][];
+            /**
+             * Suggested Targets
+             * @default []
+             */
+            suggested_targets: components["schemas"]["SuggestedTargetOut"][];
+        };
+        /** SetLogIn */
+        SetLogIn: {
+            /** Exercise Id */
+            exercise_id: number;
+            /** Set Number */
+            set_number: number;
+            /** Reps */
+            reps: number;
+            /** Weight Kg */
+            weight_kg?: number | string | null;
+            /** Rpe */
+            rpe?: number | string | null;
+        };
+        /** SetLogOut */
+        SetLogOut: {
+            /** Id */
+            id: number;
+            /** Session Id */
+            session_id: number;
+            /** Exercise Id */
+            exercise_id: number;
+            /** Set Number */
+            set_number: number;
+            /** Reps */
+            reps: number;
+            /** Weight Kg */
+            weight_kg: string | null;
+            /** Rpe */
+            rpe: string | null;
+        };
         /**
          * Sex
          * @enum {string}
          */
         Sex: "male" | "female";
+        /** SuggestedTargetOut */
+        SuggestedTargetOut: {
+            /** Exercise Id */
+            exercise_id: number;
+            /** Sets */
+            sets: number;
+            /** Reps Min */
+            reps_min: number;
+            /** Reps Max */
+            reps_max: number;
+            /** Suggested Weight Kg */
+            suggested_weight_kg: number | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -562,6 +712,168 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanSummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sessions_api_sessions_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_session_api_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_api_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_set_api_sessions__session_id__sets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetLogIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetLogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_session_api_sessions__session_id__complete_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
                 };
             };
             /** @description Validation Error */
