@@ -29,6 +29,8 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+# B008: FastAPI's `Depends()` in argument defaults is the idiomatic pattern.
+ignore = ["B008"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

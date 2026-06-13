@@ -1,8 +1,8 @@
 """Shared pytest fixtures.
 
 Uses a dedicated test database (TEST_DATABASE_URL, never the dev DB). The schema
-is created once per session from the ORM metadata; each test runs inside a
-transaction that is rolled back, so tests don't leak state.
+is created once per session from the ORM metadata; every table is truncated after
+each test so state doesn't leak between tests (services issue real commits).
 """
 
 from collections.abc import AsyncGenerator
@@ -11,18 +11,19 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
+import app.models  # noqa: F401  (populate metadata before create_all)
 from app.config import get_settings
 from app.db import Base, get_db
-from app.main import app
-
-# Import models so metadata is populated before create_all.
-import app.models  # noqa: F401
+from app.main import app as fastapi_app
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def engine():
-    eng = create_async_engine(get_settings().test_database_url, future=True)
+    """Function-scoped engine with a fresh schema (asyncpg connections are bound to
+    the running event loop, so a session-scoped engine would cross loops)."""
+    eng = create_async_engine(get_settings().test_database_url, future=True, poolclass=NullPool)
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -32,30 +33,23 @@ async def engine():
 
 @pytest_asyncio.fixture
 async def db(engine) -> AsyncGenerator[AsyncSession]:
-    """A session bound to a transaction that is rolled back after each test."""
-    connection = await engine.connect()
-    trans = await connection.begin()
-    session = async_sessionmaker(bind=connection, expire_on_commit=False)()
-    try:
+    sessionmaker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with sessionmaker() as session:
         yield session
-    finally:
-        await session.close()
-        await trans.rollback()
-        await connection.close()
 
 
 @pytest_asyncio.fixture
 async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient]:
-    """HTTP client with get_db overridden to the rolled-back test session."""
+    """HTTP client with get_db overridden to the test session."""
 
     async def _override_get_db() -> AsyncGenerator[AsyncSession]:
         yield db
 
-    app.dependency_overrides[get_db] = _override_get_db
-    transport = ASGITransport(app=app)
+    fastapi_app.dependency_overrides[get_db] = _override_get_db
+    transport = ASGITransport(app=fastapi_app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
-    app.dependency_overrides.clear()
+    fastapi_app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="session")
