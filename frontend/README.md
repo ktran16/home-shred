@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HomeShred — Frontend
 
-## Getting Started
+Next.js 16 (App Router, Turbopack) + TypeScript (strict) + Tailwind. Mobile-first;
+server state via TanStack Query; typed API client generated from the backend OpenAPI.
 
-First, run the development server:
+## How to run (dev)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev          # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`/api/*` is proxied to the backend (`BACKEND_INTERNAL_URL`, default
+`http://localhost:8000`) via `next.config.ts` — so the browser only talks to the
+FE origin (no CORS). Start the backend first (see `../backend/README.md`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Generated API client
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The API contract is the backend OpenAPI schema. Regenerate types whenever the
+backend API changes:
 
-## Learn More
+```bash
+# from backend/: dump the schema
+uv run python -c "import json; from app.main import app; open('../frontend/openapi.json','w').write(json.dumps(app.openapi()))"
+# from frontend/: regenerate types
+pnpm gen:api
+```
 
-To learn more about Next.js, take a look at the following resources:
+- `lib/api.d.ts` — generated types (do not edit).
+- `lib/api.ts` — `openapi-fetch` client (relative baseUrl).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Lint / build
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm exec eslint .
+pnpm build
+```
