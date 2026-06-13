@@ -8,11 +8,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = (
-        "postgresql+asyncpg://homeshred:homeshred@localhost:5432/homeshred"
-    )
+    database_url: str = "postgresql+asyncpg://homeshred:homeshred@localhost:5434/homeshred"
     test_database_url: str = (
-        "postgresql+asyncpg://homeshred:homeshred@localhost:5432/homeshred_test"
+        "postgresql+asyncpg://homeshred:homeshred@localhost:5434/homeshred_test"
     )
     cors_origins: str = "http://localhost:3000"
 
