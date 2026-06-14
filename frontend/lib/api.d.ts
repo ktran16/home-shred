@@ -297,6 +297,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/nutrition/adaptive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Adaptive
+         * @description Adaptive TDEE preview from the bodyweight trend (SPEC §17.3 A1).
+         */
+        get: operations["adaptive_api_nutrition_adaptive_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nutrition/adaptive/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Adaptive
+         * @description Persist today's targets from the adaptive TDEE estimate (SPEC §17.3 A1).
+         */
+        post: operations["apply_adaptive_api_nutrition_adaptive_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -306,6 +346,41 @@ export interface components {
          * @enum {string}
          */
         ActivityLevel: "sedentary" | "light" | "moderate" | "active" | "very_active";
+        /**
+         * AdaptiveTDEEOut
+         * @description Adaptive TDEE preview (SPEC §17.3 A1). When `enough_data` is false the estimate
+         *     fields are null and `reason` explains why.
+         */
+        AdaptiveTDEEOut: {
+            /** Enough Data */
+            enough_data: boolean;
+            /**
+             * Samples
+             * @default 0
+             */
+            samples: number;
+            /**
+             * Days Span
+             * @default 0
+             */
+            days_span: number;
+            /** Reason */
+            reason?: string | null;
+            /** Static Tdee Kcal */
+            static_tdee_kcal?: number | null;
+            /** Estimated Tdee Kcal */
+            estimated_tdee_kcal?: number | null;
+            /** Assumed Intake Kcal */
+            assumed_intake_kcal?: number | null;
+            /** Weight Change Kg Per Week */
+            weight_change_kg_per_week?: number | null;
+            /**
+             * Clamped
+             * @default false
+             */
+            clamped: boolean;
+            suggested?: components["schemas"]["SuggestedTargets"] | null;
+        };
         /** BodyMetricIn */
         BodyMetricIn: {
             /** Date */
@@ -625,6 +700,17 @@ export interface components {
             reps_max: number;
             /** Suggested Weight Kg */
             suggested_weight_kg: number | null;
+        };
+        /** SuggestedTargets */
+        SuggestedTargets: {
+            /** Target Kcal */
+            target_kcal: number;
+            /** Protein G */
+            protein_g: number;
+            /** Carbs G */
+            carbs_g: number;
+            /** Fat G */
+            fat_g: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -1254,6 +1340,46 @@ export interface operations {
         };
     };
     recompute_api_nutrition_recompute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NutritionTargetOut"];
+                };
+            };
+        };
+    };
+    adaptive_api_nutrition_adaptive_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdaptiveTDEEOut"];
+                };
+            };
+        };
+    };
+    apply_adaptive_api_nutrition_adaptive_apply_post: {
         parameters: {
             query?: never;
             header?: never;

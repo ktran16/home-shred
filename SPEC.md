@@ -707,11 +707,15 @@ constraint while making the output meaningfully smarter.
 Cloud LLM is documented as a **fallback**, not the default (§17.7).
 
 ### 17.3 Track A — Classic ML & time-series (local, in-process)
-- **A1 — Adaptive TDEE / calorie auto-tuning. (Highest near-term value.)** Compare the
-  bodyweight trend (EWMA or Holt linear smoothing over `body_metrics`) against intake
-  and nudge `nutrition_targets` so the deficit tracks reality instead of a static
-  Mifflin-St Jeor estimate. Library: `statsmodels` or a hand-rolled EWMA. Light, fully
-  local, uses data already collected. Deterministic and unit-testable like §16.
+- **A1 — Adaptive TDEE / calorie auto-tuning. ✅ DONE (M1).** Estimates real maintenance
+  from the bodyweight **trend**: a least-squares slope over `body_metrics` (kg/day, noise-
+  robust, no extra deps) feeds `estimated_TDEE = mean_intake − slope×7700`. Intake is
+  assumed to equal the `nutrition_targets` in effect (no food log yet — documented
+  simplification, like §9's proxy). Guardrails: ≥4 weigh-ins spanning ≥14 days in a 28-day
+  window, estimate clamped to ±25% of the static TDEE. Pure `linear_slope` /
+  `adaptive_estimate` (unit-tested), `GET /api/nutrition/adaptive` (preview, `enough_data`
+  flag) + `POST /api/nutrition/adaptive/apply` (persists today's target), and an Adaptive
+  TDEE card on `/nutrition`.
 - **A2 — Per-user load / readiness prediction.** A small regressor (scikit-learn /
   LightGBM) over logged sets predicting next-session load or a readiness score from
   RPE + bodyweight (+ optional sleep). **Deferred:** a solo user is data-starved (≈3–5
@@ -755,7 +759,7 @@ unconstrained by the CPU-only host and the strongest privacy story.
   on-device.
 
 ### 17.6 Recommended phasing
-- **M1 — A1 Adaptive TDEE** (light, local, uses existing data, immediate value).
+- **M1 — A1 Adaptive TDEE. ✅ DONE.** (light, local, uses existing data, immediate value).
 - **M2 — B1 Ollama sidecar** → B1a food logging, then B1b substitution (rule-validated).
 - **M3 — B2a pose rep-counting / form check** (browser, fully on-device).
 - **M4 — A2 prediction model** once a year of logs exists; **A3 / B2b** as optional
