@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Integer, Numeric, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Integer, Numeric, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base, enum_col
@@ -8,11 +8,13 @@ from app.enums import ActivityLevel, Level, Sex
 
 
 class UserProfile(Base):
-    """Single-row profile, id always = 1 (SPEC §5)."""
+    """Managed training profile. Exactly one profile should be active."""
 
     __tablename__ = "user_profile"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False, default="Default")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     sex: Mapped[Sex] = mapped_column(enum_col(Sex), nullable=False)
     age: Mapped[int] = mapped_column(Integer, nullable=False)
     height_cm: Mapped[float] = mapped_column(Numeric(5, 1), nullable=False)
@@ -24,6 +26,6 @@ class UserProfile(Base):
     )
 
     __table_args__ = (
-        CheckConstraint("id = 1", name="ck_user_profile_singleton"),
+        CheckConstraint("length(trim(name)) > 0", name="ck_user_profile_name_nonempty"),
         CheckConstraint("age >= 14 AND age <= 100", name="ck_user_profile_age"),
     )

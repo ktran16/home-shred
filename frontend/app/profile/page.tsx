@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { Badge, Button, Card, Input, Label } from "@/components/ui";
-import { api, type ProfileIn } from "@/lib/api";
+import { api, type ProfileIn, type ProfileOut } from "@/lib/api";
 import {
   computeNutritionPreview,
   computeRecoveryPreview,
@@ -30,6 +30,7 @@ const SEX_OPTIONS = [
 ] as const;
 
 const EMPTY: ProfileIn = {
+  name: "Default",
   sex: "male",
   age: 30,
   height_cm: 175,
@@ -39,6 +40,7 @@ const EMPTY: ProfileIn = {
 };
 
 export default function ProfilePage() {
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["profile"],
     queryFn: async () => {
@@ -46,6 +48,41 @@ export default function ProfilePage() {
       if (response.status === 404) return null;
       return data ?? null;
     },
+  });
+  const profiles = useQuery({
+    queryKey: ["profiles"],
+    queryFn: async () => {
+      const { data } = await api.GET("/api/profile/all");
+      return data ?? [];
+    },
+  });
+  const activate = useMutation({
+    mutationFn: async (profileId: number) => {
+      const { error } = await api.PATCH("/api/profile/{profile_id}/activate", {
+        params: { path: { profile_id: profileId } },
+      });
+      if (error) throw new Error("Could not switch profile");
+    },
+    onSuccess: () => invalidateProfileState(qc),
+  });
+  const create = useMutation({
+    mutationFn: async () => {
+      const base = data
+        ? profileToInput({ ...data, name: nextProfileName(profiles.data ?? []) })
+        : { ...EMPTY, name: nextProfileName(profiles.data ?? []) };
+      const { error } = await api.POST("/api/profile", { body: base });
+      if (error) throw new Error("Could not create profile");
+    },
+    onSuccess: () => invalidateProfileState(qc),
+  });
+  const remove = useMutation({
+    mutationFn: async (profileId: number) => {
+      const { error } = await api.DELETE("/api/profile/{profile_id}", {
+        params: { path: { profile_id: profileId } },
+      });
+      if (error) throw new Error("Could not delete profile");
+    },
+    onSuccess: () => invalidateProfileState(qc),
   });
 
   return (
@@ -59,23 +96,107 @@ export default function ProfilePage() {
       {isLoading ? (
         <p className="text-sm text-zinc-500">Loading…</p>
       ) : (
-        <ProfileForm
-          key={data ? "loaded" : "empty"}
-          initial={
-            data
-              ? {
-                  sex: data.sex,
-                  age: data.age,
-                  height_cm: Number(data.height_cm),
-                  weight_kg: Number(data.weight_kg),
-                  activity_level: data.activity_level,
-                  experience_level: data.experience_level,
-                }
-              : EMPTY
-          }
-        />
+        <>
+          <ProfileSwitcher
+            profiles={profiles.data ?? []}
+            isLoading={profiles.isLoading}
+            activeId={data?.id ?? null}
+            onActivate={(id) => activate.mutate(id)}
+            onCreate={() => create.mutate()}
+            onDelete={(id) => remove.mutate(id)}
+            busy={activate.isPending || create.isPending || remove.isPending}
+            error={activate.error?.message ?? create.error?.message ?? remove.error?.message}
+          />
+          <ProfileForm key={data?.id ?? "empty"} initial={data ? profileToInput(data) : EMPTY} />
+        </>
       )}
     </div>
+  );
+}
+
+function ProfileSwitcher({
+  profiles,
+  isLoading,
+  activeId,
+  onActivate,
+  onCreate,
+  onDelete,
+  busy,
+  error,
+}: {
+  profiles: ProfileOut[];
+  isLoading: boolean;
+  activeId: number | null;
+  onActivate: (id: number) => void;
+  onCreate: () => void;
+  onDelete: (id: number) => void;
+  busy: boolean;
+  error?: string;
+}) {
+  if (isLoading) {
+    return <p className="text-sm text-zinc-500">Loading profiles...</p>;
+  }
+
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">Profile manager</h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Switch who the trainer is currently calibrated for.
+          </p>
+        </div>
+        <Button className="h-10 min-h-0 px-3 text-sm" onClick={onCreate} disabled={busy}>
+          New
+        </Button>
+      </div>
+      {profiles.length === 0 ? (
+        <p className="text-sm text-zinc-500">Create a profile to get started.</p>
+      ) : (
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {profiles.map((profile) => (
+            <div
+              key={profile.id}
+              className={cn(
+                "rounded-lg border p-3",
+                profile.id === activeId
+                  ? "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30"
+                  : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900",
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate font-semibold">{profile.name}</div>
+                  <div className="text-xs capitalize text-zinc-500">
+                    {profile.experience_level} · {profile.weight_kg} kg
+                  </div>
+                </div>
+                {profile.id === activeId && <Badge>active</Badge>}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  variant={profile.id === activeId ? "secondary" : "primary"}
+                  className="h-9 min-h-0 flex-1 px-3 text-sm"
+                  onClick={() => onActivate(profile.id)}
+                  disabled={busy || profile.id === activeId}
+                >
+                  {profile.id === activeId ? "Selected" : "Switch"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="h-9 min-h-0 px-3 text-sm"
+                  onClick={() => onDelete(profile.id)}
+                  disabled={busy || profiles.length <= 1}
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </Card>
   );
 }
 
@@ -149,7 +270,15 @@ function ProfileForm({ initial }: { initial: ProfileIn }) {
 
           <div className="flex flex-col gap-7 p-4 sm:p-5">
             <FormSection title="Identity">
-              <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
+              <div className="grid gap-3 sm:grid-cols-[1fr_1fr_160px]">
+                <div>
+                  <Label>Name</Label>
+                  <Input
+                    value={form.name ?? ""}
+                    maxLength={80}
+                    onChange={(e) => set("name", e.target.value)}
+                  />
+                </div>
                 <SegmentedField label="Sex">
                   {SEX_OPTIONS.map((option) => (
                     <ChoiceButton
@@ -260,6 +389,31 @@ function ProfileForm({ initial }: { initial: ProfileIn }) {
       </div>
     </div>
   );
+}
+
+function profileToInput(profile: ProfileOut): ProfileIn {
+  return {
+    name: profile.name,
+    sex: profile.sex,
+    age: profile.age,
+    height_cm: Number(profile.height_cm),
+    weight_kg: Number(profile.weight_kg),
+    activity_level: profile.activity_level,
+    experience_level: profile.experience_level,
+  };
+}
+
+function invalidateProfileState(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ["profile"] });
+  qc.invalidateQueries({ queryKey: ["profiles"] });
+  qc.invalidateQueries({ queryKey: ["nutrition"] });
+  qc.invalidateQueries({ queryKey: ["nutrition-adaptive"] });
+  qc.invalidateQueries({ queryKey: ["plans"] });
+  qc.invalidateQueries({ queryKey: ["plan-coverage"] });
+}
+
+function nextProfileName(profiles: ProfileOut[]): string {
+  return `Profile ${profiles.length + 1}`;
 }
 
 function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
