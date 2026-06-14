@@ -16,23 +16,13 @@ import {
 } from "recharts";
 
 import { Button, Card, Input, Label } from "@/components/ui";
-import { api, type VolumePoint } from "@/lib/api";
+import { api } from "@/lib/api";
+import { pivotVolume } from "@/lib/charts";
 
 const COLORS = [
   "#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6",
   "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16",
 ];
-
-function pivot(points: VolumePoint[]) {
-  const weeks = [...new Set(points.map((p) => p.week))].sort();
-  const muscles = [...new Set(points.map((p) => p.muscle))].sort();
-  const rows = weeks.map((week) => {
-    const row: Record<string, string | number> = { week };
-    for (const p of points) if (p.week === week) row[p.muscle] = p.volume;
-    return row;
-  });
-  return { rows, muscles };
-}
 
 export default function ProgressPage() {
   const volume = useQuery({
@@ -44,7 +34,7 @@ export default function ProgressPage() {
     queryFn: async () => (await api.GET("/api/body-metrics")).data ?? [],
   });
 
-  const { rows, muscles } = pivot(volume.data ?? []);
+  const { rows, muscles } = pivotVolume(volume.data ?? []);
   const weightData = (metrics.data ?? []).map((m) => ({
     date: m.date,
     weight: Number(m.weight_kg),

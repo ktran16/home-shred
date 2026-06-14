@@ -38,10 +38,10 @@ A **single-user (solo)** web app acting as a personal trainer:
 | ORM          | SQLAlchemy 2.0 (async, `Mapped[]` style) + Alembic                     |
 | DB           | PostgreSQL 17+ (Docker)                                                 |
 | BE pkg mgr   | `uv` (`pyproject.toml` + `uv.lock`, local `.venv`)                     |
-| FE pkg mgr   | `pnpm`  (Node.js 20+ required by Next.js 16)                            |
+| FE pkg mgr   | `pnpm` (pinned via `packageManager`; Node 20+ — prod image uses node:22-slim, see §15) |
 | FE API client| `openapi-typescript` + `openapi-fetch` generated from FastAPI OpenAPI  |
 | Lint/format  | BE: `ruff` (lint+format). FE: `eslint` + `prettier`                    |
-| Testing      | BE: `pytest` + `pytest-asyncio` + `httpx.AsyncClient`. FE: `vitest`    |
+| Testing      | BE: `pytest` + `pytest-asyncio` + `httpx.AsyncClient`. FE: `vitest` (+ `@testing-library/react`) |
 | Migrations   | Alembic, autogenerate + manual review                                  |
 
 ### Exercise data source
@@ -298,6 +298,15 @@ FOCUS_PATTERNS: dict[Focus, list[MovementPattern]] = {
 ```
 > Where it says "alternate per day", rotate the choice using `day_index % 2` so Full Body A/B/C differ.
 
+**Implemented model (see `services/plan_generator.py`):** each entry above is a
+`Slot(patterns: tuple[MovementPattern, ...], role)` where `role ∈ {compound,
+accessory, core, conditioning}`. A slot with >1 pattern rotates by
+`day_index % len(patterns)` (the "alternate per day" cases). The **role** is the
+single source of truth for both (a) selection preference — compound slots prefer
+`is_compound` exercises, accessory slots prefer non-compound — and (b) which
+`PRESCRIPTION` row applies (§6.4). This is cleaner than re-deriving compound/accessory
+from the chosen exercise, and keeps "the 3rd push is an accessory" intent explicit.
+
 ### 6.4 Shred prescription (sets / reps / rest)
 Driven by whether the slot is a compound or accessory, plus level.
 
@@ -402,7 +411,7 @@ GET   /api/exercises                       ?equipment&muscle&category&pattern  �
 GET   /api/exercises/{id}                  → ExerciseOut
 
 GET   /api/profile                         → ProfileOut
-PUT   /api/profile          ProfileIn      → ProfileOut       # upserts row id=1
+PUT   /api/profile          ProfileIn      → ProfileOut       # upserts row id=1; also recomputes nutrition targets (§8)
 
 POST  /api/plans            PlanCreateIn   → PlanOut          # {goal, days_per_week}; generates+persists, activates
 GET   /api/plans                            → list[PlanSummaryOut]
@@ -410,6 +419,7 @@ GET   /api/plans/{id}                        → PlanDetailOut   # nested days�
 PATCH /api/plans/{id}/activate              → PlanSummaryOut
 
 POST  /api/sessions         SessionCreateIn → SessionOut       # {plan_day_id, date?}; returns suggested targets per exercise
+GET   /api/sessions/{id}                     → SessionOut       # session + logs (used by the FE workout runner)
 POST  /api/sessions/{id}/sets  SetLogIn     → SetLogOut
 PATCH /api/sessions/{id}/complete           → SessionOut
 GET   /api/sessions          ?from&to        → list[SessionOut]
@@ -567,3 +577,75 @@ Add as the final phase after §12 Phase 6:
 - Write both Dockerfiles + `docker-compose.prod.yml` + `.env.prod.example` + `next.config.js` rewrite + `output: "standalone"`.
 - Verify a clean `up -d --build` on the Ubuntu host brings all three healthy, migrations apply, seed runs, and the app is reachable at `:3000` over LAN and Tailscale.
 - This phase is part of Definition of Done for self-hosting.
+
+---
+
+## 15. Implementation Notes & Deviations
+
+Decisions made during the build that refine or deviate from the text above. Kept
+here so the spec stays the source of truth.
+
+- **Dev DB host port.** `docker-compose.yml` publishes Postgres on host **5434**
+  (not 5432) because 5432/5433 were taken by other containers on the dev host.
+  `.env.example` / READMEs match. The container port is still 5432; prod is unaffected.
+- **Frontend prod image = `node:22-slim`** (spec §14.3 said node:20). Corepack's
+  bundled pnpm threw `ERR_UNKNOWN_BUILTIN_MODULE` on node:20; node 22 satisfies
+  §2's "Node 20+". pnpm is pinned (`packageManager: pnpm@11.5.2` + `corepack prepare`).
+- **Prod `db` service uses `env_file: .env.prod`** rather than an `environment:`
+  block — Compose interpolates `${VAR}` from `.env`, not `.env.prod`, so the block
+  would have been empty. The healthcheck resolves `${POSTGRES_USER}` at runtime.
+- **Enum storage.** `db.enum_col()` persists StrEnum **values** (e.g. `"dumbbell"`)
+  as VARCHAR + CHECK via `values_callable` (CLAUDE.md "store as text").
+- **Plan generator is pure.** `generate_plan(..., exercises)` takes the candidate
+  list as a parameter (not a DB handle), so §6.9 tests run with no DB. The API
+  layer loads exercises and persists the returned `PlanDraft`.
+- **Conditioning data.** free-exercise-db has no "burpee"; conditioning is covered
+  by plyometric jumps, mountain climbers, wind sprints and a dumbbell swing.
+- **Profile PUT recomputes nutrition** (so the dashboard is always current), and a
+  convenience `GET /api/sessions/{id}` was added for the workout runner.
+- **Test isolation.** Backend tests use a function-scoped async engine (NullPool) with
+  a fresh schema per test — chosen over savepoint-rollback because asyncpg connections
+  are bound to the event loop and a session-scoped engine crossed loops.
+- **FE tests (vitest).** Pure helpers extracted for testability: `lib/timer.ts`
+  (`intervalState`/`isBoundary`) and `lib/charts.ts` (`pivotVolume`), plus a
+  fake-timer test of `RestTimer` and UI smoke tests.
+
+---
+
+## 16. Rule Engine — Limitations & Roadmap
+
+The current generator/progression is intentionally simple (SPEC §1: "rule-based, no
+ML/LLM yet"). Known limitations and a prioritized path to improve it **without**
+adding ML:
+
+**Current limitations**
+1. **Volume is not periodised across the mesocycle** — only the week-4 deload varies
+   load; weeks 1–3 are flat. Real hypertrophy programs ramp volume then deload.
+2. **Progression is per-exercise and memoryless beyond the last 1–3 sessions** — it
+   can't see a multi-week trend (e.g. slow grind vs. true stall).
+3. **No fatigue / recovery model** — RPE is logged but unused; back-to-back hard days
+   aren't balanced.
+4. **Selection variety is seeded but static** — the same seed yields the same plan;
+   there's no anti-staleness rotation across regenerations or weeks.
+5. **Bodyweight volume proxy is crude** (`reps × bodyweight × 1.0`) — per-exercise
+   load fractions would make the volume chart meaningful.
+6. **No per-muscle weekly volume targets** — the plan doesn't check it lands each
+   muscle in an effective set range (e.g. 10–20 hard sets/week).
+
+**Roadmap (rule-based, ordered by value/effort)**
+- **R1 — Set-volume targeting.** Add `WEEKLY_SET_TARGETS[muscle]` and have the
+  generator/validator ensure each primary muscle hits its range; surface a coverage
+  report (extends the §6.9 tests).
+- **R2 — Linear periodisation.** Add a week→(sets, intensity) curve so weeks 1–3 ramp
+  and week 4 deloads, derived from `week_number` (already computed in §7).
+- **R3 — Trend-aware progression.** Use RPE + a 3–4 session window: progress only when
+  last session was RPE ≤ 8 at top range; hold on RPE ≥ 9.5; deload on a real downtrend.
+- **R4 — Per-exercise bodyweight load factors** in `exercise_pools.py` to fix the
+  volume proxy (R5 depends on this).
+- **R5 — Anti-staleness rotation.** Seed selection with the mesocycle week so
+  exercises rotate over time while staying reproducible per (plan, week).
+- **R6 — Fatigue balancing.** Spread high-CNS movements (e.g. heavy hinge/pull) across
+  the split and avoid stacking them on consecutive days.
+
+All of the above stay deterministic and unit-testable, preserving the "no ML"
+constraint while making the output meaningfully smarter.

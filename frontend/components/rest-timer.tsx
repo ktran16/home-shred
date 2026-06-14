@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui";
+import { CYCLE, intervalState, isBoundary } from "@/lib/timer";
 
 function beep() {
   try {
@@ -57,16 +58,12 @@ export function RestTimer({ seconds, onDismiss }: { seconds: number; onDismiss: 
   );
 }
 
-const WORK = 40;
-const REST = 20;
-const CYCLE = WORK + REST;
-
 /** Conditioning interval timer: rounds × (40s work / 20s rest) (SPEC §6.7). */
 export function ConditioningTimer({ rounds }: { rounds: number }) {
   const total = rounds * CYCLE;
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const done = elapsed >= total;
+  const { round, phase, remaining, done } = intervalState(elapsed, rounds);
 
   useEffect(() => {
     if (!running || done) return;
@@ -75,17 +72,10 @@ export function ConditioningTimer({ rounds }: { rounds: number }) {
   }, [running, done, total]);
 
   useEffect(() => {
-    if (!running) return;
-    const within = elapsed % CYCLE;
-    if (done || within === 0 || within === WORK) beep(); // boundary / completion cue
-  }, [elapsed, running, done]);
+    if (running && isBoundary(elapsed, rounds)) beep(); // boundary / completion cue
+  }, [elapsed, running, rounds]);
 
   if (done) return <span className="text-sm text-emerald-600">Finished ✓</span>;
-
-  const within = elapsed % CYCLE;
-  const phase = within < WORK ? "work" : "rest";
-  const remaining = within < WORK ? WORK - within : CYCLE - within;
-  const round = Math.floor(elapsed / CYCLE) + 1;
 
   return (
     <div className="flex items-center gap-3">
