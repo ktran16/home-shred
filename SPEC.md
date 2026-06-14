@@ -676,3 +676,97 @@ adding ML:
 
 All of the above stay deterministic and unit-testable, preserving the "no ML"
 constraint while making the output meaningfully smarter.
+
+---
+
+## 17. AI / ML Roadmap (local-first, CPU-only)
+
+> Status: **roadmap only — nothing here is built.** The MVP (§1–§14) and the rule
+> engine (§16) are intentionally ML-free. This section records *where* learning-based
+> or NL features could add value and *how* to add them without breaking the project's
+> two load-bearing constraints.
+
+### 17.1 Constraints that shape every choice
+1. **Privacy / self-host (SPEC §14).** The app is LAN/Tailscale-only with no public
+   exposure. A cloud LLM (e.g. the Claude API) would send workout/body data off the
+   host — only acceptable behind an explicit, opt-in consent toggle. **Default stance:
+   keep inference local.**
+2. **Target hardware: CPU-only homelab.** No GPU. This caps local LLMs at small
+   (≤~4B, quantized) models and rules out heavy DL on the server. On-device (browser)
+   inference on the user's phone is unconstrained by the server and is preferred where
+   it fits.
+3. **The rule engine stays authoritative.** Any model *proposes*; §6/§7/§16 services
+   *validate*. A model must never bypass the equipment constraint (§1) or write an
+   unvalidated plan/prescription.
+
+### 17.2 Two tracks
+- **Track A — Classic ML / time-series** (tabular, runs in-process, CPU, tiny).
+- **Track B — Local LLM + on-device DL** (NL features via a local model; computer
+  vision on the phone).
+
+Cloud LLM is documented as a **fallback**, not the default (§17.7).
+
+### 17.3 Track A — Classic ML & time-series (local, in-process)
+- **A1 — Adaptive TDEE / calorie auto-tuning. (Highest near-term value.)** Compare the
+  bodyweight trend (EWMA or Holt linear smoothing over `body_metrics`) against intake
+  and nudge `nutrition_targets` so the deficit tracks reality instead of a static
+  Mifflin-St Jeor estimate. Library: `statsmodels` or a hand-rolled EWMA. Light, fully
+  local, uses data already collected. Deterministic and unit-testable like §16.
+- **A2 — Per-user load / readiness prediction.** A small regressor (scikit-learn /
+  LightGBM) over logged sets predicting next-session load or a readiness score from
+  RPE + bodyweight (+ optional sleep). **Deferred:** a solo user is data-starved (≈3–5
+  sessions/week → a year+ to train usefully), and §16 R3 (RPE autoregulation) already
+  covers ~90% of the benefit. *Action now: keep logging the features; build the model
+  only once there's a year of history.*
+- **A3 — Local semantic exercise search.** Sentence-transformer embeddings
+  (`all-MiniLM-L6`, ~80 MB) via ONNX Runtime / `fastembed`, CPU, in-process — "find a
+  hamstring exercise like an RDL." Small and optional.
+
+### 17.4 Track B1 — Local LLM (Ollama sidecar)
+Run an open model on the homelab box; the backend talks to it over the internal Docker
+network (same pattern as backend↔db). Zero data leaves the host.
+- **Deployment:** add an `ollama` service to `docker-compose.prod.yml`; backend reads
+  `OLLAMA_URL=http://ollama:11434`.
+- **Models (CPU-only):** Llama 3.2 3B, Qwen 2.5 3B, Phi-3.5-mini, Gemma 2 2B —
+  quantized GGUF (Q4), ~2–4 GB RAM, a few seconds/response on CPU.
+- **Structured output:** Ollama `format: "json"` (or llama.cpp GBNF grammar) → the
+  model returns a schema-valid object that a rule-engine service validates before
+  anything is persisted.
+- **Realistic scope on CPU/≤4B:** good enough for *parsing/extraction*; weak at nuanced
+  coaching prose.
+  - **B1a — NL food logging:** "2 eggs and oatmeal" → grams P/C/F, logged against
+    targets. Best first LLM slice (high daily utility, low risk).
+  - **B1b — Exercise substitution:** "my shoulder hurts, swap overhead press" → the
+    model suggests a replacement; the generator's equipment/pattern/level rules confirm
+    it's valid before swapping.
+  - **B1c — Plan/why explanations:** acceptable but quality-limited on a 3B model;
+    revisit if hardware improves or via the cloud fallback (§17.7).
+
+### 17.5 Track B2 — On-device DL (browser, the most private option)
+Runs in the browser **on the user's phone** — video never reaches the server, so it's
+unconstrained by the CPU-only host and the strongest privacy story.
+- **B2a — Pose-based rep counting + form/ROM check.** MediaPipe Pose / MoveNet /
+  BlazePose via TensorFlow.js / MediaPipe Tasks (Web), wired into
+  `/workout/[planDayId]`: auto-count reps, flag squat depth / lockout / tempo. The most
+  genuinely "DL" feature and a natural fit for the phone-in-the-gym use case.
+- **B2b — Food logging without a vision model.** Local food classifiers are
+  inaccurate; the reliable local path is **barcode scanning** (ZXing / QuaggaJS in the
+  browser) + an offline **Open Food Facts** dump. Not ML, but solves the real problem
+  on-device.
+
+### 17.6 Recommended phasing
+- **M1 — A1 Adaptive TDEE** (light, local, uses existing data, immediate value).
+- **M2 — B1 Ollama sidecar** → B1a food logging, then B1b substitution (rule-validated).
+- **M3 — B2a pose rep-counting / form check** (browser, fully on-device).
+- **M4 — A2 prediction model** once a year of logs exists; **A3 / B2b** as optional
+  polish.
+Each milestone ships behind a feature flag; any feature that leaves the LAN ships behind
+an explicit opt-in consent toggle.
+
+### 17.7 Cloud LLM — explicit fallback, not the default
+If local quality proves insufficient for coaching/conversational plan edits, a
+hosted model (e.g. the Claude API — Haiku for cheap parsing, Sonnet/Opus for coaching)
+is the higher-quality option. It is **opt-in only**, sends the minimum necessary data,
+and still routes every proposed change through the rule engine. Keeping the assistant
+behind one `assistant.py` service interface means local vs cloud is a config switch, not
+a rewrite.
