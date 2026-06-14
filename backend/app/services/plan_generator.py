@@ -111,10 +111,39 @@ WEEKLY_SET_TARGETS: dict[str, int] = {
     "abdominals": 6,
 }
 MAX_SETS_PER_EXERCISE = 6  # ceiling when boosting volume to hit targets
+WEEKLY_SET_TARGET_FLOOR = 4  # don't scale a muscle's target below this
 # Indirect-volume model: a set credits its primary movers fully and its secondary
 # movers at half (SPEC §16 R1) — so arms/glutes accrue volume from compounds.
 PRIMARY_SET_CREDIT = 1.0
 SECONDARY_SET_CREDIT = 0.5
+
+# rationale (SPEC §16 R7): recovery capacity declines with age, so older lifters get
+# longer rests and a lower weekly volume ceiling. (min_age, rest_multiplier, volume_factor),
+# highest band first. Under 40 → no change.
+AGE_ADJUSTMENTS: list[tuple[int, float, float]] = [
+    (55, 1.20, 0.80),
+    (40, 1.10, 0.90),
+    (0, 1.00, 1.00),
+]
+
+
+def age_adjustment(age: int | None) -> tuple[float, float]:
+    """Return (rest_multiplier, volume_factor) for an age (None → no adjustment)."""
+    if age is None:
+        return (1.0, 1.0)
+    for min_age, rest_mult, vol_factor in AGE_ADJUSTMENTS:
+        if age >= min_age:
+            return (rest_mult, vol_factor)
+    return (1.0, 1.0)
+
+
+def scaled_set_targets(age: int | None) -> dict[str, int]:
+    """Weekly set targets scaled down for older lifters (SPEC §16 R7)."""
+    _, vol_factor = age_adjustment(age)
+    return {
+        muscle: max(WEEKLY_SET_TARGET_FLOOR, round(target * vol_factor))
+        for muscle, target in WEEKLY_SET_TARGETS.items()
+    }
 
 
 class ExerciseLike(Protocol):
@@ -207,12 +236,14 @@ def generate_plan(
     level: Level,
     available_equipment: set[Equipment],
     exercises: list[ExerciseLike],
+    age: int | None = None,
 ) -> PlanDraft:
     if days_per_week not in SPLITS:
         raise ValueError(f"unsupported days_per_week: {days_per_week} (expected 3, 4 or 5)")
 
     focuses = SPLITS[days_per_week]
     cond_days = _conditioning_days(focuses)
+    rest_mult, _ = age_adjustment(age)  # longer rests for older lifters (SPEC §16 R7)
 
     # index exercises by pattern, pre-filtered to allowed equipment (SPEC §1 hard rule).
     by_pattern: dict[MovementPattern, list[ExerciseLike]] = {p: [] for p in MovementPattern}
@@ -250,14 +281,14 @@ def generate_plan(
                     sets=rx["sets"],
                     target_reps_min=rx["reps_min"],
                     target_reps_max=rx["reps_max"],
-                    rest_seconds=rx["rest_seconds"],
+                    rest_seconds=round(rx["rest_seconds"] * rest_mult),
                     is_conditioning=slot.role == "conditioning",
                 )
             )
             order += 1
         draft.days.append(day)
 
-    _apply_volume_targeting(draft, {ex.id: ex for ex in exercises})
+    _apply_volume_targeting(draft, {ex.id: ex for ex in exercises}, scaled_set_targets(age))
     return draft
 
 
@@ -295,20 +326,31 @@ def weekly_set_coverage(draft: PlanDraft, ex_by_id: dict[int, ExerciseLike]) -> 
     return coverage
 
 
-def coverage_report(draft: PlanDraft, ex_by_id: dict[int, ExerciseLike]) -> list[CoveragePoint]:
-    """Report each targeted muscle's credited weekly sets vs its minimum (SPEC §16 R1)."""
+def coverage_report(
+    draft: PlanDraft,
+    ex_by_id: dict[int, ExerciseLike],
+    targets: dict[str, int] | None = None,
+) -> list[CoveragePoint]:
+    """Report each targeted muscle's credited weekly sets vs its minimum (SPEC §16 R1).
+
+    `targets` defaults to the base weekly targets; pass age-scaled targets (§16 R7) to
+    keep the report consistent with what the generator aimed for.
+    """
+    targets = targets if targets is not None else WEEKLY_SET_TARGETS
     coverage = weekly_set_coverage(draft, ex_by_id)
     report = [
         CoveragePoint(
             muscle=m, sets=round(coverage.get(m, 0.0), 1), target=t, met=coverage.get(m, 0.0) >= t
         )
-        for m, t in WEEKLY_SET_TARGETS.items()
+        for m, t in targets.items()
     ]
     report.sort(key=lambda c: c.muscle)
     return report
 
 
-def _apply_volume_targeting(draft: PlanDraft, ex_by_id: dict[int, ExerciseLike]) -> None:
+def _apply_volume_targeting(
+    draft: PlanDraft, ex_by_id: dict[int, ExerciseLike], targets: dict[str, int]
+) -> None:
     """Boost under-target muscles to their weekly minimum by adding sets to existing
     exercises that train them (deterministic, capped; SPEC §16 R1).
 
@@ -316,8 +358,8 @@ def _apply_volume_targeting(draft: PlanDraft, ex_by_id: dict[int, ExerciseLike])
     exercise is capped at MAX_SETS_PER_EXERCISE. Iterates muscles in a fixed order and
     exercises in (day, order) order so the result stays reproducible.
     """
-    for muscle in sorted(WEEKLY_SET_TARGETS):
-        target = WEEKLY_SET_TARGETS[muscle]
+    for muscle in sorted(targets):
+        target = targets[muscle]
         # candidate (exercise, credit) pairs that train this muscle, deterministic order
         candidates: list[tuple[PlanExerciseDraft, float]] = []
         for day in draft.days:

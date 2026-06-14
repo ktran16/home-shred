@@ -10,8 +10,10 @@ from app.services.plan_generator import (
     MAX_SETS_PER_EXERCISE,
     PRESCRIPTION,
     WEEKLY_SET_TARGETS,
+    age_adjustment,
     coverage_report,
     generate_plan,
+    scaled_set_targets,
     weekly_set_coverage,
 )
 
@@ -141,3 +143,43 @@ def test_coverage_report_shape() -> None:
     assert {c.muscle for c in report} == set(WEEKLY_SET_TARGETS)
     for c in report:
         assert c.met == (c.sets >= c.target)
+
+
+# --- R7: age-based recovery / volume adjustment (SPEC §16) ---
+
+
+def test_age_adjustment_bands() -> None:
+    assert age_adjustment(None) == (1.0, 1.0)
+    assert age_adjustment(30) == (1.0, 1.0)
+    assert age_adjustment(45) == (1.10, 0.90)
+    assert age_adjustment(60) == (1.20, 0.80)
+
+
+def test_scaled_targets_lower_for_older() -> None:
+    young = scaled_set_targets(30)
+    senior = scaled_set_targets(60)
+    assert young == WEEKLY_SET_TARGETS
+    assert all(senior[m] <= young[m] for m in WEEKLY_SET_TARGETS)
+    assert any(senior[m] < young[m] for m in WEEKLY_SET_TARGETS)
+
+
+def test_age_increases_rest_periods() -> None:
+    exercises = make_exercises()
+    young = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, exercises, age=30)
+    senior = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, exercises, age=60)
+
+    def rest_of_first(draft) -> int:
+        return draft.days[0].exercises[0].rest_seconds
+
+    assert rest_of_first(senior) > rest_of_first(young)
+
+
+def test_age_reduces_total_volume() -> None:
+    exercises = make_exercises()
+
+    def total_sets(draft) -> int:
+        return sum(pe.sets for d in draft.days for pe in d.exercises if not pe.is_conditioning)
+
+    young = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, exercises, age=30)
+    senior = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, exercises, age=60)
+    assert total_sets(senior) <= total_sets(young)

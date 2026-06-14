@@ -654,6 +654,14 @@ adding ML:
   exercises rotate over time while staying reproducible per (plan, week).
 - **R6 — Fatigue balancing.** Spread high-CNS movements (e.g. heavy hinge/pull) across
   the split and avoid stacking them on consecutive days.
+- **R7 — Age-based recovery/volume. ✅ DONE.** The profile `age` now feeds the workout
+  plan (previously only nutrition): `AGE_ADJUSTMENTS` bands (≥55, ≥40, else) yield a
+  `rest_multiplier` (longer rests with age — ×1.10 / ×1.20) and a `volume_factor` that
+  scales `WEEKLY_SET_TARGETS` down (×0.90 / ×0.80, floored). `generate_plan(..., age)`
+  applies both; `create_plan` passes `profile.age`; the coverage report/endpoint scale
+  with age too. Tested in `test_plan_generator.py`. So the plan is now customized by
+  **age + experience + days + equipment + adaptive progression**, and nutrition by the
+  full body-measure set (sex/age/height/weight/activity).
 
 All of the above stay deterministic and unit-testable, preserving the "no ML"
 constraint while making the output meaningfully smarter.

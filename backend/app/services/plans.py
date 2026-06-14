@@ -6,7 +6,12 @@ from sqlalchemy.orm import selectinload
 
 from app.enums import Equipment, Goal
 from app.models import Exercise, Plan, PlanDay, PlanExercise
-from app.services.plan_generator import CoveragePoint, coverage_report, generate_plan
+from app.services.plan_generator import (
+    CoveragePoint,
+    coverage_report,
+    generate_plan,
+    scaled_set_targets,
+)
 from app.services.profile import get_profile
 
 # SPEC §1 hard constraint: the only available equipment.
@@ -43,6 +48,7 @@ async def create_plan(db: AsyncSession, *, days_per_week: int, goal: Goal = Goal
         level=profile.experience_level,
         available_equipment=AVAILABLE_EQUIPMENT,
         exercises=exercises,
+        age=profile.age,  # age-based recovery/volume adjustment (SPEC §16 R7)
     )
 
     # Only one active plan at a time (SPEC §5).
@@ -94,7 +100,9 @@ async def plan_coverage(db: AsyncSession, plan_id: int) -> list[CoveragePoint] |
         return None
     # ORM Plan/PlanDay/PlanExercise/Exercise are duck-compatible with the draft types.
     ex_by_id = {pe.exercise_id: pe.exercise for day in plan.days for pe in day.exercises}
-    return coverage_report(plan, ex_by_id)  # type: ignore[arg-type]
+    profile = await get_profile(db)
+    targets = scaled_set_targets(profile.age if profile else None)  # §16 R7
+    return coverage_report(plan, ex_by_id, targets)  # type: ignore[arg-type]
 
 
 async def activate_plan(db: AsyncSession, plan_id: int) -> Plan | None:
