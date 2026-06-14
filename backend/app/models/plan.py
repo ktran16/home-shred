@@ -28,6 +28,11 @@ class Plan(Base):
     goal: Mapped[Goal] = mapped_column(enum_col(Goal), nullable=False)
     days_per_week: Mapped[int] = mapped_column(Integer, nullable=False)
     experience_level: Mapped[Level] = mapped_column(enum_col(Level), nullable=False)
+    # mesocycle week this plan was generated for (SPEC §16 R2/R5): drives the
+    # periodisation volume curve and the exercise-rotation seed.
+    mesocycle_week: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
     # only one active at a time (enforced in service, SPEC §5).
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"

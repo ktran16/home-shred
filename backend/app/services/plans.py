@@ -36,7 +36,9 @@ async def _load_plan(db: AsyncSession, plan_id: int) -> Plan | None:
     return await db.scalar(stmt)
 
 
-async def create_plan(db: AsyncSession, *, days_per_week: int, goal: Goal = Goal.SHRED) -> Plan:
+async def create_plan(
+    db: AsyncSession, *, days_per_week: int, goal: Goal = Goal.SHRED, week: int = 1
+) -> Plan:
     profile = await get_profile(db)
     if profile is None:
         raise NoProfileError
@@ -49,6 +51,7 @@ async def create_plan(db: AsyncSession, *, days_per_week: int, goal: Goal = Goal
         available_equipment=AVAILABLE_EQUIPMENT,
         exercises=exercises,
         age=profile.age,  # age-based recovery/volume adjustment (SPEC §16 R7)
+        week=week,  # periodisation + rotation (SPEC §16 R2/R5)
     )
 
     # Only one active plan at a time (SPEC §5).
@@ -59,6 +62,7 @@ async def create_plan(db: AsyncSession, *, days_per_week: int, goal: Goal = Goal
         goal=draft.goal,
         days_per_week=draft.days_per_week,
         experience_level=draft.experience_level,
+        mesocycle_week=week,
         is_active=True,
     )
     for day_draft in draft.days:
@@ -101,7 +105,7 @@ async def plan_coverage(db: AsyncSession, plan_id: int) -> list[CoveragePoint] |
     # ORM Plan/PlanDay/PlanExercise/Exercise are duck-compatible with the draft types.
     ex_by_id = {pe.exercise_id: pe.exercise for day in plan.days for pe in day.exercises}
     profile = await get_profile(db)
-    targets = scaled_set_targets(profile.age if profile else None)  # §16 R7
+    targets = scaled_set_targets(profile.age if profile else None, plan.mesocycle_week)  # §16 R7/R2
     return coverage_report(plan, ex_by_id, targets)  # type: ignore[arg-type]
 
 

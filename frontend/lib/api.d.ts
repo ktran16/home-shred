@@ -406,6 +406,11 @@ export interface components {
             goal: components["schemas"]["Goal"];
             /** Days Per Week */
             days_per_week: number;
+            /**
+             * Week
+             * @default 1
+             */
+            week: number;
         };
         /** PlanDayOut */
         PlanDayOut: {
@@ -427,6 +432,8 @@ export interface components {
             /** Days Per Week */
             days_per_week: number;
             experience_level: components["schemas"]["Level"];
+            /** Mesocycle Week */
+            mesocycle_week: number;
             /** Is Active */
             is_active: boolean;
             /**
@@ -467,6 +474,8 @@ export interface components {
             /** Days Per Week */
             days_per_week: number;
             experience_level: components["schemas"]["Level"];
+            /** Mesocycle Week */
+            mesocycle_week: number;
             /** Is Active */
             is_active: boolean;
             /**

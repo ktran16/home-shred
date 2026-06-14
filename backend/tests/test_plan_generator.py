@@ -183,3 +183,47 @@ def test_age_reduces_total_volume() -> None:
     young = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, exercises, age=30)
     senior = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, exercises, age=60)
     assert total_sets(senior) <= total_sets(young)
+
+
+# --- R2 periodisation + R5 rotation (SPEC §16) ---
+
+
+def _strength_ids(draft) -> list[int]:
+    return [pe.exercise_id for d in draft.days for pe in d.exercises if not pe.is_conditioning]
+
+
+def _total_strength_sets(draft) -> int:
+    return sum(pe.sets for d in draft.days for pe in d.exercises if not pe.is_conditioning)
+
+
+def test_periodisation_ramps_then_deloads() -> None:
+    ex = make_exercises()
+    vols = {
+        w: _total_strength_sets(
+            generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, ex, week=w)
+        )
+        for w in (1, 2, 3, 4)
+    }
+    assert vols[3] >= vols[2] >= vols[1]  # accumulation
+    assert vols[4] < vols[1]  # deload week
+
+
+def test_rotation_changes_exercises_across_weeks() -> None:
+    ex = make_exercises()
+    w1 = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, ex, week=1)
+    w2 = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, ex, week=2)
+    assert _strength_ids(w1) != _strength_ids(w2)  # exercises rotate
+
+
+def test_each_week_reproducible() -> None:
+    ex = make_exercises()
+    for w in (1, 2, 3, 4):
+        a = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, ex, week=w)
+        b = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, ex, week=w)
+        assert a == b
+
+
+def test_mesocycle_position_wraps() -> None:
+    from app.services.plan_generator import mesocycle_position
+
+    assert [mesocycle_position(w) for w in (1, 2, 3, 4, 5, 8)] == [1, 2, 3, 4, 1, 4]

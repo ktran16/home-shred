@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 
 import { Badge, Button, Card } from "@/components/ui";
@@ -52,6 +52,21 @@ function useActivePlan() {
 
 export default function PlanPage() {
   const { isLoading, plan, coverage, hasAny } = useActivePlan();
+  const qc = useQueryClient();
+
+  const nextWeek = useMutation({
+    mutationFn: async () => {
+      if (!plan) return;
+      const { error } = await api.POST("/api/plans", {
+        body: { goal: "shred", days_per_week: plan.days_per_week, week: plan.mesocycle_week + 1 },
+      });
+      if (error) throw new Error("Could not advance week");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plans"] });
+      qc.invalidateQueries({ queryKey: ["plan-coverage"] });
+    },
+  });
 
   if (isLoading) return <p className="text-sm text-zinc-500">Loading…</p>;
 
@@ -72,13 +87,31 @@ export default function PlanPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">{plan.name}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold">{plan.name}</h1>
+        </div>
         <Link href="/plan/new">
           <Button variant="ghost" className="px-3 text-sm">
             New
           </Button>
         </Link>
       </div>
+
+      <Card className="flex items-center justify-between gap-2">
+        <div className="flex flex-col">
+          <span className="text-sm font-medium">Mesocycle week {plan.mesocycle_week}</span>
+          <span className="text-xs text-zinc-500">
+            Volume periodises (deload every 4th week) and exercises rotate each week.
+          </span>
+        </div>
+        <Button
+          className="h-9 min-h-0 px-3 text-sm"
+          onClick={() => nextWeek.mutate()}
+          disabled={nextWeek.isPending}
+        >
+          {nextWeek.isPending ? "…" : "Next week"}
+        </Button>
+      </Card>
 
       {coverage.length > 0 && (
         <Card className="flex flex-col gap-2">

@@ -640,8 +640,10 @@ adding ML:
   movers at ½ (so arms/glutes accrue from compounds). `coverage_report` +
   `GET /api/plans/{id}/coverage` surface it; the FE shows a coverage card. Tested in
   `test_plan_generator.py` (targets met-or-capped, cap respected, report shape).
-- **R2 — Linear periodisation.** Add a week→(sets, intensity) curve so weeks 1–3 ramp
-  and week 4 deloads, derived from `week_number` (already computed in §7).
+- **R2 — Mesocycle periodisation. ✅ DONE.** `WEEK_PERIODISATION` maps the 4-week block
+  position → volume multiplier (1.0 / 1.1 / 1.2 / 0.6) applied to base sets and the
+  weekly targets, so weeks 1–3 accumulate and week 4 deloads. `generate_plan(..., week)`;
+  plans persist `mesocycle_week`; the FE "Next week" button advances the block.
 - **R3 — RPE-aware progression. ✅ DONE.** `suggest_next_targets` now uses logged RPE:
   progress only when last session was at top range AND avg RPE ≤ `RPE_PROGRESS_CEILING`
   (8.0); hold if reps were hit but RPE was higher; deload on a rep stall OR a sustained
@@ -650,8 +652,10 @@ adding ML:
   `test_progression.py`.
 - **R4 — Per-exercise bodyweight load factors** in `exercise_pools.py` to fix the
   volume proxy (R5 depends on this).
-- **R5 — Anti-staleness rotation.** Seed selection with the mesocycle week so
-  exercises rotate over time while staying reproducible per (plan, week).
+- **R5 — Anti-staleness rotation. ✅ DONE.** The selection RNG seed includes the
+  mesocycle week (`hash((placeholder, week, day, slot))`), so exercises rotate week to
+  week while staying reproducible per (week, day, slot). Combines with R2: each new week
+  is both periodised and freshly rotated.
 - **R6 — Fatigue balancing.** Spread high-CNS movements (e.g. heavy hinge/pull) across
   the split and avoid stacking them on consecutive days.
 - **R7 — Age-based recovery/volume. ✅ DONE.** The profile `age` now feeds the workout

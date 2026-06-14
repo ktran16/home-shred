@@ -127,6 +127,22 @@ AGE_ADJUSTMENTS: list[tuple[int, float, float]] = [
 ]
 
 
+# rationale (SPEC §16 R2): mesocycle volume periodisation. Position within a 4-week
+# block → volume multiplier: weeks 1–3 accumulate, week 4 deloads. Week 1 = 1.0 so the
+# baseline plan is unchanged.
+WEEK_PERIODISATION: dict[int, float] = {1: 1.0, 2: 1.1, 3: 1.2, 4: 0.6}
+MESOCYCLE_LEN = 4
+
+
+def mesocycle_position(week: int) -> int:
+    """1-based position within the 4-week block (week 5 → 1, week 8 → 4, ...)."""
+    return (max(1, week) - 1) % MESOCYCLE_LEN + 1
+
+
+def week_volume_multiplier(week: int) -> float:
+    return WEEK_PERIODISATION[mesocycle_position(week)]
+
+
 def age_adjustment(age: int | None) -> tuple[float, float]:
     """Return (rest_multiplier, volume_factor) for an age (None → no adjustment)."""
     if age is None:
@@ -137,11 +153,12 @@ def age_adjustment(age: int | None) -> tuple[float, float]:
     return (1.0, 1.0)
 
 
-def scaled_set_targets(age: int | None) -> dict[str, int]:
-    """Weekly set targets scaled down for older lifters (SPEC §16 R7)."""
-    _, vol_factor = age_adjustment(age)
+def scaled_set_targets(age: int | None, week: int = 1) -> dict[str, int]:
+    """Weekly set targets scaled by age (§16 R7) and mesocycle week (§16 R2)."""
+    _, age_factor = age_adjustment(age)
+    factor = age_factor * week_volume_multiplier(week)
     return {
-        muscle: max(WEEKLY_SET_TARGET_FLOOR, round(target * vol_factor))
+        muscle: max(WEEKLY_SET_TARGET_FLOOR, round(target * factor))
         for muscle, target in WEEKLY_SET_TARGETS.items()
     }
 
@@ -237,6 +254,7 @@ def generate_plan(
     available_equipment: set[Equipment],
     exercises: list[ExerciseLike],
     age: int | None = None,
+    week: int = 1,
 ) -> PlanDraft:
     if days_per_week not in SPLITS:
         raise ValueError(f"unsupported days_per_week: {days_per_week} (expected 3, 4 or 5)")
@@ -244,6 +262,7 @@ def generate_plan(
     focuses = SPLITS[days_per_week]
     cond_days = _conditioning_days(focuses)
     rest_mult, _ = age_adjustment(age)  # longer rests for older lifters (SPEC §16 R7)
+    week_mult = week_volume_multiplier(week)  # mesocycle volume curve (SPEC §16 R2)
 
     # index exercises by pattern, pre-filtered to allowed equipment (SPEC §1 hard rule).
     by_pattern: dict[MovementPattern, list[ExerciseLike]] = {p: [] for p in MovementPattern}
@@ -251,7 +270,7 @@ def generate_plan(
         if ex.pattern is not None and ex.equipment in available_equipment:
             by_pattern[ex.pattern].append(ex)
 
-    name = f"Shred — {days_per_week}-day {_SPLIT_LABELS[days_per_week]}"
+    name = f"Shred — {days_per_week}-day {_SPLIT_LABELS[days_per_week]} · Week {week}"
     draft = PlanDraft(name=name, goal=goal, days_per_week=days_per_week, experience_level=level)
 
     used_in_plan: set[int] = set()
@@ -266,7 +285,9 @@ def generate_plan(
         for slot_index, slot in enumerate(slots):
             pattern = slot.patterns[(day_index - 1) % len(slot.patterns)]
             candidates = [c for c in by_pattern[pattern] if _level_allows(level, c.level)]
-            seed = hash((_PLAN_SEED_PLACEHOLDER, day_index, slot_index))
+            # week in the seed → exercises rotate per mesocycle week (SPEC §16 R5),
+            # reproducible per (week, day, slot).
+            seed = hash((_PLAN_SEED_PLACEHOLDER, week, day_index, slot_index))
             rng = random.Random(seed)
             chosen = _select(candidates, slot.role, rng, used_in_plan, used_in_day)
             if chosen is None:
@@ -274,11 +295,15 @@ def generate_plan(
             used_in_plan.add(chosen.id)
             used_in_day.add(chosen.id)
             rx = _prescription_for(slot.role, level)
+            # conditioning rounds aren't periodised; strength sets follow the week curve.
+            sets = (
+                rx["sets"] if slot.role == "conditioning" else max(2, round(rx["sets"] * week_mult))
+            )
             day.exercises.append(
                 PlanExerciseDraft(
                     exercise_id=chosen.id,
                     order_index=order,
-                    sets=rx["sets"],
+                    sets=sets,
                     target_reps_min=rx["reps_min"],
                     target_reps_max=rx["reps_max"],
                     rest_seconds=round(rx["rest_seconds"] * rest_mult),
@@ -288,7 +313,7 @@ def generate_plan(
             order += 1
         draft.days.append(day)
 
-    _apply_volume_targeting(draft, {ex.id: ex for ex in exercises}, scaled_set_targets(age))
+    _apply_volume_targeting(draft, {ex.id: ex for ex in exercises}, scaled_set_targets(age, week))
     return draft
 
 

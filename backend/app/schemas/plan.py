@@ -9,6 +9,8 @@ from app.schemas.exercise import ExerciseOut
 class PlanCreateIn(BaseModel):
     goal: Goal = Goal.SHRED
     days_per_week: int = Field(ge=3, le=5)
+    # mesocycle week to generate (SPEC §16 R2/R5): periodises volume + rotates exercises.
+    week: int = Field(default=1, ge=1, le=52)
 
 
 class PlanExerciseOut(BaseModel):
@@ -42,6 +44,7 @@ class PlanSummaryOut(BaseModel):
     goal: Goal
     days_per_week: int
     experience_level: Level
+    mesocycle_week: int
     is_active: bool
     created_at: datetime
 

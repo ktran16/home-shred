@@ -22,7 +22,7 @@ export default function NewPlanPage() {
   const mutation = useMutation({
     mutationFn: async (daysPerWeek: number) => {
       const { data, error, response } = await api.POST("/api/plans", {
-        body: { goal: "shred", days_per_week: daysPerWeek },
+        body: { goal: "shred", days_per_week: daysPerWeek, week: 1 },
       });
       if (error) {
         if (response.status === 409) throw new Error("Set up your profile first.");

@@ -17,7 +17,9 @@ router = APIRouter(prefix="/plans", tags=["plans"])
 @router.post("", response_model=PlanDetailOut, status_code=201)
 async def create_plan(data: PlanCreateIn, db: AsyncSession = Depends(get_db)) -> PlanDetailOut:
     try:
-        plan = await svc.create_plan(db, days_per_week=data.days_per_week, goal=data.goal)
+        plan = await svc.create_plan(
+            db, days_per_week=data.days_per_week, goal=data.goal, week=data.week
+        )
     except NoProfileError as exc:
         raise HTTPException(
             status_code=409, detail="Set a profile before generating a plan"
