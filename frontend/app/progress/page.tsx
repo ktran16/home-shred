@@ -16,8 +16,9 @@ import {
 } from "recharts";
 
 import { Button, Card, Input, Label } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, type SessionOut } from "@/lib/api";
 import { pivotVolume } from "@/lib/charts";
+import { buildMonthCalendar, buildWorkoutStats, type CalendarDay } from "@/lib/workout-stats";
 
 const COLORS = [
   "#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6",
@@ -33,20 +34,44 @@ export default function ProgressPage() {
     queryKey: ["body-metrics"],
     queryFn: async () => (await api.GET("/api/body-metrics")).data ?? [],
   });
+  const sessions = useQuery({
+    queryKey: ["sessions"],
+    queryFn: async () => (await api.GET("/api/sessions")).data ?? [],
+  });
 
   const { rows, muscles } = pivotVolume(volume.data ?? []);
   const weightData = (metrics.data ?? []).map((m) => ({
     date: m.date,
     weight: Number(m.weight_kg),
   }));
+  const sessionData = sessions.data ?? [];
+  const stats = buildWorkoutStats(sessionData);
+  const calendar = buildMonthCalendar(sessionData);
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">Progress</h1>
+      <div>
+        <h1 className="text-2xl font-bold">Progress</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Calendar, workout stats, volume, and body metrics.
+        </p>
+      </div>
+
+      <WorkoutSummary
+        sessions={sessionData}
+        calendar={calendar}
+        stats={stats}
+        isLoading={sessions.isLoading}
+        isError={sessions.isError}
+      />
 
       <Card className="flex flex-col gap-2">
         <h2 className="font-semibold">Weekly volume by muscle</h2>
-        {rows.length === 0 ? (
+        {volume.isLoading ? (
+          <p className="text-sm text-zinc-500">Loading volume...</p>
+        ) : volume.isError ? (
+          <p className="text-sm text-red-600">Could not load volume.</p>
+        ) : rows.length === 0 ? (
           <p className="text-sm text-zinc-500">Log some workouts to see volume.</p>
         ) : (
           <ResponsiveContainer width="100%" height={260}>
@@ -66,7 +91,11 @@ export default function ProgressPage() {
 
       <Card className="flex flex-col gap-2">
         <h2 className="font-semibold">Bodyweight</h2>
-        {weightData.length === 0 ? (
+        {metrics.isLoading ? (
+          <p className="text-sm text-zinc-500">Loading measurements...</p>
+        ) : metrics.isError ? (
+          <p className="text-sm text-red-600">Could not load measurements.</p>
+        ) : weightData.length === 0 ? (
           <p className="text-sm text-zinc-500">No measurements yet.</p>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
@@ -84,6 +113,130 @@ export default function ProgressPage() {
       <AddMetric />
     </div>
   );
+}
+
+function WorkoutSummary({
+  sessions,
+  calendar,
+  stats,
+  isLoading,
+  isError,
+}: {
+  sessions: SessionOut[];
+  calendar: CalendarDay[];
+  stats: ReturnType<typeof buildWorkoutStats>;
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  const monthLabel = new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(
+    new Date(),
+  );
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <Card className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-semibold">{monthLabel}</h2>
+          <span className="text-sm text-zinc-500">{stats.currentMonthCompleted} complete</span>
+        </div>
+        {isLoading ? (
+          <p className="text-sm text-zinc-500">Loading calendar...</p>
+        ) : isError ? (
+          <p className="text-sm text-red-600">Could not load sessions.</p>
+        ) : (
+          <CalendarGrid days={calendar} />
+        )}
+      </Card>
+
+      <Card className="flex flex-col gap-3">
+        <h2 className="font-semibold">Workout statistics</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <StatTile label="Streak" value={stats.currentStreak} suffix="days" />
+          <StatTile label="This week" value={stats.currentWeekCompleted} suffix="done" />
+          <StatTile label="Sessions" value={stats.completedSessions} suffix="total" />
+          <StatTile label="Sets" value={stats.totalSets} suffix="logged" />
+          <StatTile label="Reps" value={stats.totalReps} suffix="logged" className="col-span-2" />
+        </div>
+        <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Latest</div>
+          <div className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
+            {latestSessionText(sessions)}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function CalendarGrid({ days }: { days: CalendarDay[] }) {
+  const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
+  return (
+    <div>
+      <div className="mb-2 grid grid-cols-7 gap-1 text-center text-xs font-semibold text-zinc-400">
+        {weekDays.map((day, index) => (
+          <span key={`${day}-${index}`}>{day}</span>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((day) => (
+          <label
+            key={day.iso}
+            title={`${day.iso}: ${day.completed} completed, ${day.started} started`}
+            className={[
+              "flex min-h-[48px] cursor-default flex-col items-center justify-center rounded-lg border text-xs transition-colors",
+              day.inMonth
+                ? "border-zinc-200 bg-white text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                : "border-zinc-100 bg-zinc-50 text-zinc-300 dark:border-zinc-900 dark:bg-zinc-950 dark:text-zinc-700",
+              day.isToday ? "ring-2 ring-emerald-500" : "",
+              day.completed > 0
+                ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                : "",
+            ].join(" ")}
+          >
+            <input
+              type="checkbox"
+              readOnly
+              checked={day.completed > 0}
+              aria-label={`${day.iso} completed`}
+              className="mb-1 h-4 w-4 accent-emerald-600"
+            />
+            <span className="font-semibold">{day.day}</span>
+            {day.completed > 1 && <span className="text-[10px]">x{day.completed}</span>}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  suffix,
+  className = "",
+}: {
+  label: string;
+  value: number;
+  suffix: string;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950 ${className}`}>
+      <div className="text-xs text-zinc-500">{label}</div>
+      <div className="mt-1 flex items-baseline gap-1">
+        <span className="text-2xl font-bold tabular-nums">{value}</span>
+        <span className="text-xs font-medium text-zinc-500">{suffix}</span>
+      </div>
+    </div>
+  );
+}
+
+function latestSessionText(sessions: SessionOut[]): string {
+  const latest = [...sessions].sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (!latest) return "No workouts logged yet.";
+  const status = latest.completed ? "completed" : "started";
+  const setCount = latest.set_logs.length;
+  return `${latest.date} · ${status} · ${setCount} ${setCount === 1 ? "set" : "sets"}`;
 }
 
 function AddMetric() {

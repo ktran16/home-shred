@@ -4,9 +4,11 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { MovementCue } from "@/components/movement-cue";
 import { ConditioningTimer, RestTimer } from "@/components/rest-timer";
 import { Badge, Button, Card, Input } from "@/components/ui";
 import { api, type PlanDayOut, type PlanExerciseOut, type SuggestedTargetOut } from "@/lib/api";
+import { exerciseInstructions, movementLabel, primaryMuscleText } from "@/lib/exercise-cues";
 
 export default function WorkoutPage() {
   const params = useParams<{ planDayId: string }>();
@@ -80,7 +82,12 @@ function Runner({ day }: { day: PlanDayOut }) {
 
   return (
     <div className="flex flex-col gap-4 pb-28">
-      <h1 className="text-xl font-bold">Day {day.day_index} workout</h1>
+      <div>
+        <h1 className="text-2xl font-bold">Day {day.day_index} workout</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Follow the cue, log each set, then use the rest timer.
+        </p>
+      </div>
 
       {day.exercises.map((pe) => (
         <ExerciseBlock
@@ -117,13 +124,22 @@ function ExerciseBlock({
   const sets = target?.sets ?? pe.sets;
   const repsDefault = target?.reps_min ?? pe.target_reps_min;
   const weightDefault = target?.suggested_weight_kg ?? null;
+  const instructions = exerciseInstructions(pe.exercise);
 
   if (pe.is_conditioning) {
     return (
-      <Card className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="font-medium">{pe.exercise.name}</span>
-          <Badge>conditioning</Badge>
+      <Card className="flex flex-col gap-4">
+        <div className="grid gap-4 md:grid-cols-[180px_1fr]">
+          <MovementCue pattern={pe.exercise.pattern} />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold">{pe.exercise.name}</span>
+              <Badge>conditioning</Badge>
+              <Badge>{movementLabel(pe.exercise.pattern)}</Badge>
+            </div>
+            <p className="text-sm text-zinc-500">{primaryMuscleText(pe.exercise)}</p>
+            <InstructionList instructions={instructions} />
+          </div>
         </div>
         <ConditioningTimer rounds={sets} />
       </Card>
@@ -131,14 +147,25 @@ function ExerciseBlock({
   }
 
   return (
-    <Card className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{pe.exercise.name}</span>
-        <span className="text-xs text-zinc-500">
-          {pe.target_reps_min}–{pe.target_reps_max} reps · {pe.rest_seconds}s
-        </span>
+    <Card className="flex flex-col gap-4">
+      <div className="grid gap-4 md:grid-cols-[180px_1fr]">
+        <MovementCue pattern={pe.exercise.pattern} />
+        <div className="flex flex-col gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold">{pe.exercise.name}</span>
+              <Badge>{movementLabel(pe.exercise.pattern)}</Badge>
+            </div>
+            <div className="mt-1 text-xs text-zinc-500">
+              {pe.target_reps_min}-{pe.target_reps_max} reps · {pe.rest_seconds}s rest ·{" "}
+              {primaryMuscleText(pe.exercise)}
+            </div>
+          </div>
+          <InstructionList instructions={instructions} />
+        </div>
       </div>
-      <div className="flex flex-col gap-2">
+
+      <div className="flex flex-col gap-2 rounded-lg border border-zinc-100 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-950">
         {Array.from({ length: sets }, (_, i) => (
           <SetRow
             key={i}
@@ -153,6 +180,22 @@ function ExerciseBlock({
         ))}
       </div>
     </Card>
+  );
+}
+
+function InstructionList({ instructions }: { instructions: string[] }) {
+  if (instructions.length === 0) return null;
+  return (
+    <ol className="grid gap-2">
+      {instructions.map((instruction, index) => (
+        <li key={`${instruction}-${index}`} className="grid grid-cols-[24px_1fr] gap-2 text-sm">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+            {index + 1}
+          </span>
+          <span className="text-zinc-700 dark:text-zinc-300">{instruction}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -199,8 +242,8 @@ function SetRow({
   });
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-6 text-sm text-zinc-500">{setNumber}</span>
+    <div className="grid grid-cols-[24px_1fr_1fr_74px_48px] items-center gap-2">
+      <span className="text-sm font-medium text-zinc-500">{setNumber}</span>
       <Input
         type="number"
         aria-label="reps"

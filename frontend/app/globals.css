@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #f8fafc;
   --foreground: #171717;
 }
 
@@ -14,7 +14,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #050505;
     --foreground: #ededed;
   }
 }
@@ -22,5 +22,195 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-feature-settings: "tnum";
+}
+
+.motion-cue {
+  --cue-accent: #10b981;
+}
+
+.motion-floor {
+  position: absolute;
+  right: 12%;
+  bottom: 22%;
+  left: 12%;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cue-accent) 45%, transparent);
+}
+
+.motion-figure {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 76px;
+  height: 92px;
+  transform: translate(-50%, -48%);
+  animation: cue-pulse 1.8s ease-in-out infinite;
+}
+
+.motion-head,
+.motion-torso,
+.motion-arm,
+.motion-leg {
+  position: absolute;
+  display: block;
+  background: #18181b;
+}
+
+.dark .motion-head,
+.dark .motion-torso,
+.dark .motion-arm,
+.dark .motion-leg {
+  background: #f4f4f5;
+}
+
+.motion-head {
+  left: 28px;
+  top: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--cue-accent);
+}
+
+.motion-torso {
+  left: 35px;
+  top: 24px;
+  width: 7px;
+  height: 34px;
+  border-radius: 999px;
+  transform-origin: top center;
+}
+
+.motion-arm,
+.motion-leg {
+  width: 6px;
+  height: 34px;
+  border-radius: 999px;
+  transform-origin: top center;
+}
+
+.motion-arm-left {
+  left: 35px;
+  top: 28px;
+  transform: rotate(54deg);
+}
+
+.motion-arm-right {
+  left: 38px;
+  top: 28px;
+  transform: rotate(-54deg);
+}
+
+.motion-leg-left {
+  left: 36px;
+  top: 56px;
+  transform: rotate(34deg);
+}
+
+.motion-leg-right {
+  left: 38px;
+  top: 56px;
+  transform: rotate(-34deg);
+}
+
+.motion-cue[data-pattern="squat"] .motion-figure,
+.motion-cue[data-pattern="conditioning"] .motion-figure {
+  animation-name: cue-squat;
+}
+
+.motion-cue[data-pattern="hinge"] .motion-torso {
+  animation: cue-hinge 1.8s ease-in-out infinite;
+}
+
+.motion-cue[data-pattern="horizontal_push"] .motion-figure {
+  animation-name: cue-push;
+}
+
+.motion-cue[data-pattern="horizontal_pull"] .motion-arm-left,
+.motion-cue[data-pattern="horizontal_pull"] .motion-arm-right,
+.motion-cue[data-pattern="vertical_pull"] .motion-arm-left,
+.motion-cue[data-pattern="vertical_pull"] .motion-arm-right {
+  animation: cue-pull 1.8s ease-in-out infinite;
+}
+
+.motion-cue[data-pattern="vertical_push"] .motion-arm-left,
+.motion-cue[data-pattern="vertical_push"] .motion-arm-right {
+  animation: cue-press 1.8s ease-in-out infinite;
+}
+
+.motion-cue[data-pattern="core"] .motion-figure {
+  animation-name: cue-core;
+}
+
+@keyframes cue-pulse {
+  0%,
+  100% {
+    transform: translate(-50%, -48%);
+  }
+  50% {
+    transform: translate(-50%, -54%);
+  }
+}
+
+@keyframes cue-squat {
+  0%,
+  100% {
+    transform: translate(-50%, -48%) scaleY(1);
+  }
+  50% {
+    transform: translate(-50%, -32%) scaleY(0.82);
+  }
+}
+
+@keyframes cue-hinge {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(58deg);
+  }
+}
+
+@keyframes cue-push {
+  0%,
+  100% {
+    transform: translate(-58%, -48%) rotate(82deg);
+  }
+  50% {
+    transform: translate(-42%, -48%) rotate(82deg);
+  }
+}
+
+@keyframes cue-pull {
+  0%,
+  100% {
+    transform: rotate(68deg);
+  }
+  50% {
+    transform: rotate(24deg);
+  }
+}
+
+@keyframes cue-press {
+  0%,
+  100% {
+    transform: rotate(-70deg);
+  }
+  50% {
+    transform: rotate(-155deg);
+  }
+}
+
+@keyframes cue-core {
+  0%,
+  100% {
+    transform: translate(-50%, -48%) rotate(88deg);
+  }
+  50% {
+    transform: translate(-50%, -52%) rotate(88deg);
+  }
 }

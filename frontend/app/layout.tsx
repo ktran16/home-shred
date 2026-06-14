@@ -22,7 +22,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     >
       <body className="flex min-h-full flex-col bg-zinc-50 dark:bg-black">
         <Providers>
-          <main className="mx-auto w-full max-w-md flex-1 px-4 py-6">{children}</main>
+          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-5 sm:px-6 sm:py-8">
+            {children}
+          </main>
           <BottomNav />
         </Providers>
       </body>

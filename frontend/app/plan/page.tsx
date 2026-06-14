@@ -3,8 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 
+import { MovementCue } from "@/components/movement-cue";
 import { Badge, Button, Card } from "@/components/ui";
 import { api } from "@/lib/api";
+import { exerciseInstructions, movementLabel, primaryMuscleText } from "@/lib/exercise-cues";
 
 const FOCUS_LABEL: Record<string, string> = {
   full_body: "Full Body",
@@ -164,16 +166,31 @@ export default function PlanPage() {
             </div>
             <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
               {day.exercises.map((pe) => (
-                <li key={pe.id} className="flex items-center justify-between gap-2 py-2">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{pe.exercise.name}</span>
-                    <span className="text-xs text-zinc-500">
+                <li key={pe.id} className="grid gap-3 py-3 sm:grid-cols-[96px_1fr_auto]">
+                  <MovementCue pattern={pe.exercise.pattern} compact />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold">{pe.exercise.name}</span>
+                      <Badge>{movementLabel(pe.exercise.pattern)}</Badge>
+                      {pe.is_conditioning && <Badge>conditioning</Badge>}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
                       {pe.is_conditioning
                         ? `${pe.sets} rounds · 40s work / 20s rest`
-                        : `${pe.sets} × ${pe.target_reps_min}–${pe.target_reps_max} · ${pe.rest_seconds}s rest`}
-                    </span>
+                        : `${pe.sets} x ${pe.target_reps_min}-${pe.target_reps_max} · ${pe.rest_seconds}s rest`}
+                    </div>
+                    <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+                      {primaryMuscleText(pe.exercise)}
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs text-zinc-500">
+                      {exerciseInstructions(pe.exercise, 1)[0] ?? "Open workout for set-by-set cues."}
+                    </p>
                   </div>
-                  {pe.is_conditioning && <Badge>conditioning</Badge>}
+                  <Link href={`/workout/${day.id}`} className="self-center">
+                    <Button variant="secondary" className="h-9 min-h-0 px-3 text-sm">
+                      Cues
+                    </Button>
+                  </Link>
                 </li>
               ))}
             </ul>
