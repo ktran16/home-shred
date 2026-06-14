@@ -94,6 +94,28 @@ _LEVEL_RANK: dict[Level, int] = {Level.BEGINNER: 0, Level.INTERMEDIATE: 1, Level
 # rationale (SPEC §6.6 step 4): stable placeholder so regeneration is reproducible.
 _PLAN_SEED_PLACEHOLDER = 0
 
+# rationale (SPEC §16 R1): minimum effective weekly hard-set targets per primary
+# muscle. Hypertrophy responds to ~10+ hard sets/muscle/week; we use modest minimums
+# achievable in 3–5 days with this equipment. Only primary movers are targeted; small
+# muscles (forearms, calves) are trained incidentally and not gated.
+WEEKLY_SET_TARGETS: dict[str, int] = {
+    "chest": 8,
+    "shoulders": 8,
+    "triceps": 6,
+    "lats": 8,
+    "middle back": 6,
+    "biceps": 6,
+    "quadriceps": 8,
+    "hamstrings": 6,
+    "glutes": 6,
+    "abdominals": 6,
+}
+MAX_SETS_PER_EXERCISE = 6  # ceiling when boosting volume to hit targets
+# Indirect-volume model: a set credits its primary movers fully and its secondary
+# movers at half (SPEC §16 R1) — so arms/glutes accrue volume from compounds.
+PRIMARY_SET_CREDIT = 1.0
+SECONDARY_SET_CREDIT = 0.5
+
 
 class ExerciseLike(Protocol):
     id: int
@@ -101,6 +123,8 @@ class ExerciseLike(Protocol):
     equipment: Equipment
     level: Level | None
     is_compound: bool
+    primary_muscles: list[str]
+    secondary_muscles: list[str]
 
 
 @dataclass
@@ -233,7 +257,90 @@ def generate_plan(
             order += 1
         draft.days.append(day)
 
+    _apply_volume_targeting(draft, {ex.id: ex for ex in exercises})
     return draft
+
+
+@dataclass
+class CoveragePoint:
+    muscle: str
+    sets: float
+    target: int
+    met: bool
+
+
+def _muscle_credit(ex: ExerciseLike, muscle: str) -> float:
+    if muscle in ex.primary_muscles:
+        return PRIMARY_SET_CREDIT
+    if muscle in ex.secondary_muscles:
+        return SECONDARY_SET_CREDIT
+    return 0.0
+
+
+def weekly_set_coverage(draft: PlanDraft, ex_by_id: dict[int, ExerciseLike]) -> dict[str, float]:
+    """Credited hard sets per muscle across the whole plan (one week): primary fully,
+    secondary at half. Conditioning (time-based, reps=0) does not count (SPEC §16 R1)."""
+    coverage: dict[str, float] = {}
+    for day in draft.days:
+        for pe in day.exercises:
+            if pe.is_conditioning:
+                continue
+            ex = ex_by_id.get(pe.exercise_id)
+            if ex is None:
+                continue
+            for muscle in ex.primary_muscles:
+                coverage[muscle] = coverage.get(muscle, 0.0) + pe.sets * PRIMARY_SET_CREDIT
+            for muscle in ex.secondary_muscles:
+                coverage[muscle] = coverage.get(muscle, 0.0) + pe.sets * SECONDARY_SET_CREDIT
+    return coverage
+
+
+def coverage_report(draft: PlanDraft, ex_by_id: dict[int, ExerciseLike]) -> list[CoveragePoint]:
+    """Report each targeted muscle's credited weekly sets vs its minimum (SPEC §16 R1)."""
+    coverage = weekly_set_coverage(draft, ex_by_id)
+    report = [
+        CoveragePoint(
+            muscle=m, sets=round(coverage.get(m, 0.0), 1), target=t, met=coverage.get(m, 0.0) >= t
+        )
+        for m, t in WEEKLY_SET_TARGETS.items()
+    ]
+    report.sort(key=lambda c: c.muscle)
+    return report
+
+
+def _apply_volume_targeting(draft: PlanDraft, ex_by_id: dict[int, ExerciseLike]) -> None:
+    """Boost under-target muscles to their weekly minimum by adding sets to existing
+    exercises that train them (deterministic, capped; SPEC §16 R1).
+
+    We add sets rather than new exercises to avoid intraday-duplicate complexity; each
+    exercise is capped at MAX_SETS_PER_EXERCISE. Iterates muscles in a fixed order and
+    exercises in (day, order) order so the result stays reproducible.
+    """
+    for muscle in sorted(WEEKLY_SET_TARGETS):
+        target = WEEKLY_SET_TARGETS[muscle]
+        # candidate (exercise, credit) pairs that train this muscle, deterministic order
+        candidates: list[tuple[PlanExerciseDraft, float]] = []
+        for day in draft.days:
+            for pe in day.exercises:
+                ex = ex_by_id.get(pe.exercise_id)
+                if pe.is_conditioning or ex is None:
+                    continue
+                credit = _muscle_credit(ex, muscle)
+                if credit > 0:
+                    candidates.append((pe, credit))
+        if not candidates:
+            continue
+        current = weekly_set_coverage(draft, ex_by_id).get(muscle, 0.0)
+        progressed = True
+        while current < target and progressed:
+            progressed = False
+            for pe, credit in candidates:
+                if current >= target:
+                    break
+                if pe.sets < MAX_SETS_PER_EXERCISE:
+                    pe.sets += 1
+                    current += credit
+                    progressed = True
 
 
 def _conditioning_days(focuses: list[Focus]) -> set[int]:

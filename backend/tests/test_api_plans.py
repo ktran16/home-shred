@@ -65,3 +65,18 @@ async def test_only_one_active_plan(client: AsyncClient, seeded: None) -> None:
 
 async def test_get_missing_plan_404(client: AsyncClient) -> None:
     assert (await client.get("/api/plans/123456")).status_code == 404
+
+
+async def test_plan_coverage_endpoint(client: AsyncClient, seeded: None) -> None:
+    await client.put("/api/profile", json=PROFILE)
+    plan = (await client.post("/api/plans", json={"days_per_week": 4})).json()
+    r = await client.get(f"/api/plans/{plan['id']}/coverage")
+    assert r.status_code == 200
+    report = r.json()
+    assert report, "empty coverage report"
+    # major movers reachable by this split should meet their weekly target
+    by_muscle = {c["muscle"]: c for c in report}
+    for m in ("chest", "lats", "quadriceps"):
+        assert by_muscle[m]["met"] is True
+
+    assert (await client.get("/api/plans/999/coverage")).status_code == 404

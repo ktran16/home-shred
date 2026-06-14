@@ -6,7 +6,14 @@ import pytest
 
 from app.enums import Equipment, Goal, Level
 from app.seed.seed_exercises import build_rows
-from app.services.plan_generator import PRESCRIPTION, generate_plan
+from app.services.plan_generator import (
+    MAX_SETS_PER_EXERCISE,
+    PRESCRIPTION,
+    WEEKLY_SET_TARGETS,
+    coverage_report,
+    generate_plan,
+    weekly_set_coverage,
+)
 
 ALLOWED = {Equipment.BODYWEIGHT, Equipment.DUMBBELL, Equipment.PULL_UP_BAR}
 LEVELS = [Level.BEGINNER, Level.INTERMEDIATE, Level.ADVANCED]
@@ -22,6 +29,8 @@ def make_exercises() -> list[SimpleNamespace]:
             equipment=row["equipment"],
             level=row["level"],
             is_compound=row["is_compound"],
+            primary_muscles=row["primary_muscles"],
+            secondary_muscles=row["secondary_muscles"],
         )
         for i, row in enumerate(build_rows())
     ]
@@ -85,3 +94,50 @@ def test_each_day_has_exercises(days: int) -> None:
     draft = _gen(days, Level.INTERMEDIATE)
     for day in draft.days:
         assert day.exercises, f"day {day.day_index} empty"
+
+
+# --- R1: weekly set-volume targeting (SPEC §16) ---
+
+
+def test_volume_targets_met_or_capped() -> None:
+    """Every targeted muscle reaches its weekly set minimum (or every exercise that
+    trains it is at the per-exercise cap, i.e. we did all we could)."""
+    exercises = make_exercises()
+    ex_by_id = {e.id: e for e in exercises}
+    for days in DAYS:
+        for level in LEVELS:
+            draft = generate_plan(Goal.SHRED, days, level, ALLOWED, exercises)
+            coverage = weekly_set_coverage(draft, ex_by_id)
+            for muscle, target in WEEKLY_SET_TARGETS.items():
+                trains = [
+                    pe
+                    for d in draft.days
+                    for pe in d.exercises
+                    if not pe.is_conditioning
+                    and (
+                        muscle in ex_by_id[pe.exercise_id].primary_muscles
+                        or muscle in ex_by_id[pe.exercise_id].secondary_muscles
+                    )
+                ]
+                if not trains:
+                    continue  # muscle not trainable by this split's patterns
+                capped = all(pe.sets >= MAX_SETS_PER_EXERCISE for pe in trains)
+                got = coverage.get(muscle, 0)
+                assert got >= target or capped, f"{muscle} {got}/{target} on {days}d/{level}"
+
+
+def test_volume_targeting_respects_set_cap() -> None:
+    exercises = make_exercises()
+    draft = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, exercises)
+    for day in draft.days:
+        for pe in day.exercises:
+            assert pe.sets <= MAX_SETS_PER_EXERCISE
+
+
+def test_coverage_report_shape() -> None:
+    exercises = make_exercises()
+    draft = generate_plan(Goal.SHRED, 5, Level.INTERMEDIATE, ALLOWED, exercises)
+    report = coverage_report(draft, {e.id: e for e in exercises})
+    assert {c.muscle for c in report} == set(WEEKLY_SET_TARGETS)
+    for c in report:
+        assert c.met == (c.sets >= c.target)

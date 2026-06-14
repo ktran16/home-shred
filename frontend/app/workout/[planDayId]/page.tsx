@@ -175,6 +175,7 @@ function SetRow({
 }) {
   const [reps, setReps] = useState<number>(defaultReps);
   const [weight, setWeight] = useState<string>(defaultWeight != null ? String(defaultWeight) : "");
+  const [rpe, setRpe] = useState<string>("");
   const [done, setDone] = useState(false);
 
   const log = useMutation({
@@ -186,6 +187,7 @@ function SetRow({
           set_number: setNumber,
           reps,
           weight_kg: weight === "" ? null : Number(weight),
+          rpe: rpe === "" ? null : Number(rpe),
         },
       });
       if (error) throw new Error("log failed");
@@ -214,6 +216,17 @@ function SetRow({
         className="h-10 min-h-0"
         value={weight}
         onChange={(e) => setWeight(e.target.value)}
+      />
+      <Input
+        type="number"
+        step="0.5"
+        min="1"
+        max="10"
+        aria-label="rpe"
+        placeholder="RPE"
+        className="h-10 min-h-0 w-16"
+        value={rpe}
+        onChange={(e) => setRpe(e.target.value)}
       />
       <Button
         className="h-10 min-h-0 w-12 px-0"

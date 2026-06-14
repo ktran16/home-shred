@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.enums import Equipment, Goal
 from app.models import Exercise, Plan, PlanDay, PlanExercise
-from app.services.plan_generator import generate_plan
+from app.services.plan_generator import CoveragePoint, coverage_report, generate_plan
 from app.services.profile import get_profile
 
 # SPEC §1 hard constraint: the only available equipment.
@@ -85,6 +85,16 @@ async def list_plans(db: AsyncSession) -> list[Plan]:
 
 async def get_plan(db: AsyncSession, plan_id: int) -> Plan | None:
     return await _load_plan(db, plan_id)
+
+
+async def plan_coverage(db: AsyncSession, plan_id: int) -> list[CoveragePoint] | None:
+    """Weekly set-volume coverage report for a persisted plan (SPEC §16 R1)."""
+    plan = await _load_plan(db, plan_id)
+    if plan is None:
+        return None
+    # ORM Plan/PlanDay/PlanExercise/Exercise are duck-compatible with the draft types.
+    ex_by_id = {pe.exercise_id: pe.exercise for day in plan.days for pe in day.exercises}
+    return coverage_report(plan, ex_by_id)  # type: ignore[arg-type]
 
 
 async def activate_plan(db: AsyncSession, plan_id: int) -> Plan | None:

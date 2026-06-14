@@ -48,3 +48,10 @@ class PlanSummaryOut(BaseModel):
 
 class PlanDetailOut(PlanSummaryOut):
     days: list[PlanDayOut]
+
+
+class CoveragePointOut(BaseModel):
+    muscle: str
+    sets: float
+    target: int
+    met: bool

@@ -21,10 +21,11 @@ class PE:
 class Log:
     reps: int
     weight_kg: float | None = None
+    rpe: float | None = None
 
 
-def session(reps: int, weight: float | None, n: int) -> list[Log]:
-    return [Log(reps=reps, weight_kg=weight) for _ in range(n)]
+def session(reps: int, weight: float | None, n: int, rpe: float | None = None) -> list[Log]:
+    return [Log(reps=reps, weight_kg=weight, rpe=rpe) for _ in range(n)]
 
 
 def test_progression_increases_on_top_range_weighted() -> None:
@@ -71,6 +72,38 @@ def test_no_history_returns_base() -> None:
     out = suggest_next_targets(pe, [], week=1)
     assert (out.sets, out.reps_min, out.reps_max) == (4, 6, 10)
     assert out.suggested_weight_kg is None
+
+
+# --- R3: RPE autoregulation (SPEC §16) ---
+
+
+def test_rpe_low_progresses_on_top_range() -> None:
+    pe = PE()
+    last = session(reps=10, weight=20.0, n=4, rpe=7.0)  # top range, easy
+    out = suggest_next_targets(pe, [last], week=1)
+    assert out.suggested_weight_kg == 20.0 + WEIGHT_INCREMENT_KG
+
+
+def test_rpe_high_holds_despite_top_range() -> None:
+    pe = PE()
+    last = session(reps=10, weight=20.0, n=4, rpe=9.5)  # hit reps but maximal effort
+    out = suggest_next_targets(pe, [last], week=1)
+    assert out.suggested_weight_kg == 20.0  # held, no increase
+
+
+def test_rpe_sustained_grind_triggers_deload() -> None:
+    pe = PE()
+    # mid-range reps (not a rep stall) but two sessions at very high RPE
+    grind = [session(reps=8, weight=20.0, n=4, rpe=9.5), session(reps=8, weight=20.0, n=4, rpe=9.5)]
+    out = suggest_next_targets(pe, grind, week=1)
+    assert out.suggested_weight_kg == round(20.0 * 0.9, 1)
+
+
+def test_no_rpe_is_backward_compatible() -> None:
+    pe = PE()
+    last = session(reps=10, weight=20.0, n=4)  # rpe None → rep-only rule still progresses
+    out = suggest_next_targets(pe, [last], week=1)
+    assert out.suggested_weight_kg == 20.0 + WEIGHT_INCREMENT_KG
 
 
 def test_week_number() -> None:

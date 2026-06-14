@@ -21,6 +21,10 @@ MESOCYCLE_WEEKS = 4  # deload every 4th week
 MESOCYCLE_DELOAD_LOAD_FACTOR = 0.6
 STALL_SESSIONS = 2  # consecutive stalled sessions that trigger a deload
 SETS_FLOOR = 2
+# rationale (SPEC §16 R3): RPE autoregulation. Only progress when the last session
+# still had headroom; hold if it was already maximal; deload on a sustained grind.
+RPE_PROGRESS_CEILING = 8.0  # progress only if last session avg RPE <= this
+RPE_DELOAD_FLOOR = 9.5  # 2 consecutive sessions at/above this → deload
 
 
 class PlanExerciseLike(Protocol):
@@ -32,6 +36,7 @@ class PlanExerciseLike(Protocol):
 class SetLogLike(Protocol):
     reps: int
     weight_kg: float | None
+    rpe: float | None
 
 
 @dataclass
@@ -58,6 +63,11 @@ def _all_at_or_above(logs: list[SetLogLike], target: int, min_sets: int) -> bool
 
 def _all_at_or_below(logs: list[SetLogLike], target: int) -> bool:
     return bool(logs) and all(log.reps <= target for log in logs)
+
+
+def _avg_rpe(logs: list[SetLogLike]) -> float | None:
+    rpes = [float(log.rpe) for log in logs if log.rpe is not None]
+    return sum(rpes) / len(rpes) if rpes else None
 
 
 def suggest_next_targets(
@@ -90,21 +100,32 @@ def suggest_next_targets(
     if not last:
         return base
 
+    last_rpe = _avg_rpe(last)
+
     # Rule 1 — hit the top of the range on ALL sets last time (SPEC §7.1).
     if _all_at_or_above(last, plan_exercise.target_reps_max, plan_exercise.sets):
-        if last_weight is not None:
-            base.suggested_weight_kg = round(last_weight + WEIGHT_INCREMENT_KG, 1)
-            # reset reps to the bottom of the range (range itself unchanged)
-        else:
-            cap = math.floor(plan_exercise.target_reps_max * BODYWEIGHT_REP_CAP_FACTOR)
-            base.reps_max = min(plan_exercise.target_reps_max + BODYWEIGHT_REP_INCREMENT, cap)
+        # RPE autoregulation (SPEC §16 R3): only add load if there was headroom.
+        # When no RPE is logged, fall back to the rep-only rule (backward compatible).
+        if last_rpe is None or last_rpe <= RPE_PROGRESS_CEILING:
+            if last_weight is not None:
+                base.suggested_weight_kg = round(last_weight + WEIGHT_INCREMENT_KG, 1)
+                # reset reps to the bottom of the range (range itself unchanged)
+            else:
+                cap = math.floor(plan_exercise.target_reps_max * BODYWEIGHT_REP_CAP_FACTOR)
+                base.reps_max = min(plan_exercise.target_reps_max + BODYWEIGHT_REP_INCREMENT, cap)
+        # else: hit the reps but too hard (RPE > ceiling) → hold and let RPE drop.
         return base
 
-    # Rule 2 — stalled at/below the bottom for 2+ consecutive sessions (SPEC §7.2).
+    # Rule 2 — deload on a stall: 2+ consecutive sessions at/below the bottom of the
+    # range (SPEC §7.2) OR a sustained high-RPE grind (SPEC §16 R3).
     stalled = recent_sessions[:STALL_SESSIONS]
-    if len(stalled) >= STALL_SESSIONS and all(
+    reps_stall = len(stalled) >= STALL_SESSIONS and all(
         _all_at_or_below(s, plan_exercise.target_reps_min) for s in stalled
-    ):
+    )
+    rpe_stall = len(stalled) >= STALL_SESSIONS and all(
+        (_avg_rpe(s) or 0.0) >= RPE_DELOAD_FLOOR for s in stalled
+    )
+    if reps_stall or rpe_stall:
         if last_weight is not None:
             base.suggested_weight_kg = round(last_weight * DELOAD_WEIGHT_FACTOR, 1)
         else:

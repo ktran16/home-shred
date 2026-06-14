@@ -32,11 +32,26 @@ function useActivePlan() {
       return data ?? null;
     },
   });
-  return { isLoading: plans.isLoading || detail.isLoading, plan: detail.data, hasAny: !!active };
+  const coverage = useQuery({
+    queryKey: ["plan-coverage", active?.id],
+    enabled: active != null,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/plans/{plan_id}/coverage", {
+        params: { path: { plan_id: active!.id } },
+      });
+      return data ?? [];
+    },
+  });
+  return {
+    isLoading: plans.isLoading || detail.isLoading,
+    plan: detail.data,
+    coverage: coverage.data ?? [],
+    hasAny: !!active,
+  };
 }
 
 export default function PlanPage() {
-  const { isLoading, plan, hasAny } = useActivePlan();
+  const { isLoading, plan, coverage, hasAny } = useActivePlan();
 
   if (isLoading) return <p className="text-sm text-zinc-500">Loading…</p>;
 
@@ -64,6 +79,23 @@ export default function PlanPage() {
           </Button>
         </Link>
       </div>
+
+      {coverage.length > 0 && (
+        <Card className="flex flex-col gap-2">
+          <span className="font-semibold">Weekly volume coverage</span>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            {coverage.map((c) => (
+              <div key={c.muscle} className="flex items-center justify-between text-sm">
+                <span className="capitalize text-zinc-600 dark:text-zinc-400">{c.muscle}</span>
+                <span className={c.met ? "text-emerald-600" : "text-amber-500"}>
+                  {c.sets}/{c.target} {c.met ? "✓" : "↓"}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-zinc-400">credited sets/week (secondary muscles count ½)</p>
+        </Card>
+      )}
 
       <div className="flex flex-col gap-2">
         {plan.days.map((day) => (

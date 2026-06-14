@@ -108,6 +108,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{plan_id}/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Plan Coverage */
+        get: operations["plan_coverage_api_plans__plan_id__coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{plan_id}/activate": {
         parameters: {
             query?: never;
@@ -298,6 +315,17 @@ export interface components {
             body_fat_pct: string | null;
             /** Waist Cm */
             waist_cm: string | null;
+        };
+        /** CoveragePointOut */
+        CoveragePointOut: {
+            /** Muscle */
+            muscle: string;
+            /** Sets */
+            sets: number;
+            /** Target */
+            target: number;
+            /** Met */
+            met: boolean;
         };
         /**
          * Equipment
@@ -806,6 +834,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_coverage_api_plans__plan_id__coverage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoveragePointOut"][];
                 };
             };
             /** @description Validation Error */

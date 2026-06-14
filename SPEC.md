@@ -633,13 +633,21 @@ adding ML:
    muscle in an effective set range (e.g. 10–20 hard sets/week).
 
 **Roadmap (rule-based, ordered by value/effort)**
-- **R1 — Set-volume targeting.** Add `WEEKLY_SET_TARGETS[muscle]` and have the
-  generator/validator ensure each primary muscle hits its range; surface a coverage
-  report (extends the §6.9 tests).
+- **R1 — Set-volume targeting. ✅ DONE.** `WEEKLY_SET_TARGETS[muscle]` defines weekly
+  minimums; `generate_plan` runs a deterministic post-pass (`_apply_volume_targeting`)
+  that adds sets to existing exercises (capped at `MAX_SETS_PER_EXERCISE`) until each
+  targeted muscle meets its minimum. Volume credits primary movers fully and secondary
+  movers at ½ (so arms/glutes accrue from compounds). `coverage_report` +
+  `GET /api/plans/{id}/coverage` surface it; the FE shows a coverage card. Tested in
+  `test_plan_generator.py` (targets met-or-capped, cap respected, report shape).
 - **R2 — Linear periodisation.** Add a week→(sets, intensity) curve so weeks 1–3 ramp
   and week 4 deloads, derived from `week_number` (already computed in §7).
-- **R3 — Trend-aware progression.** Use RPE + a 3–4 session window: progress only when
-  last session was RPE ≤ 8 at top range; hold on RPE ≥ 9.5; deload on a real downtrend.
+- **R3 — RPE-aware progression. ✅ DONE.** `suggest_next_targets` now uses logged RPE:
+  progress only when last session was at top range AND avg RPE ≤ `RPE_PROGRESS_CEILING`
+  (8.0); hold if reps were hit but RPE was higher; deload on a rep stall OR a sustained
+  grind (2 sessions ≥ `RPE_DELOAD_FLOOR` = 9.5). No-RPE logs fall back to the rep-only
+  rule (backward compatible). The FE workout runner captures per-set RPE. Tested in
+  `test_progression.py`.
 - **R4 — Per-exercise bodyweight load factors** in `exercise_pools.py` to fix the
   volume proxy (R5 depends on this).
 - **R5 — Anti-staleness rotation.** Seed selection with the mesocycle week so

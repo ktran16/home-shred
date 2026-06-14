@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.schemas.plan import PlanCreateIn, PlanDetailOut, PlanSummaryOut
+from app.schemas.plan import (
+    CoveragePointOut,
+    PlanCreateIn,
+    PlanDetailOut,
+    PlanSummaryOut,
+)
 from app.services import plans as svc
 from app.services.plans import NoProfileError
 
@@ -31,6 +36,16 @@ async def get_plan(plan_id: int, db: AsyncSession = Depends(get_db)) -> PlanDeta
     if plan is None:
         raise HTTPException(status_code=404, detail="Plan not found")
     return PlanDetailOut.model_validate(plan)
+
+
+@router.get("/{plan_id}/coverage", response_model=list[CoveragePointOut])
+async def plan_coverage(plan_id: int, db: AsyncSession = Depends(get_db)) -> list[CoveragePointOut]:
+    report = await svc.plan_coverage(db, plan_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return [
+        CoveragePointOut(muscle=c.muscle, sets=c.sets, target=c.target, met=c.met) for c in report
+    ]
 
 
 @router.patch("/{plan_id}/activate", response_model=PlanSummaryOut)

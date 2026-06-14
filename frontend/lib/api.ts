@@ -15,6 +15,7 @@ export type ProfileOut = components["schemas"]["ProfileOut"];
 export type PlanDetailOut = components["schemas"]["PlanDetailOut"];
 export type PlanDayOut = components["schemas"]["PlanDayOut"];
 export type PlanExerciseOut = components["schemas"]["PlanExerciseOut"];
+export type CoveragePointOut = components["schemas"]["CoveragePointOut"];
 export type SessionOut = components["schemas"]["SessionOut"];
 export type SuggestedTargetOut = components["schemas"]["SuggestedTargetOut"];
 export type VolumePoint = components["schemas"]["VolumePoint"];
