@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_db
 from app.schemas.plan import (
     CoveragePointOut,
+    DayFatigueOut,
     PlanCreateIn,
     PlanDetailOut,
     PlanSummaryOut,
@@ -48,6 +49,14 @@ async def plan_coverage(plan_id: int, db: AsyncSession = Depends(get_db)) -> lis
     return [
         CoveragePointOut(muscle=c.muscle, sets=c.sets, target=c.target, met=c.met) for c in report
     ]
+
+
+@router.get("/{plan_id}/fatigue", response_model=list[DayFatigueOut])
+async def plan_fatigue(plan_id: int, db: AsyncSession = Depends(get_db)) -> list[DayFatigueOut]:
+    report = await svc.plan_fatigue(db, plan_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return [DayFatigueOut(day_index=d.day_index, focus=d.focus, fatigue=d.fatigue) for d in report]
 
 
 @router.patch("/{plan_id}/activate", response_model=PlanSummaryOut)

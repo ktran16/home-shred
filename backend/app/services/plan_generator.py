@@ -94,6 +94,22 @@ _LEVEL_RANK: dict[Level, int] = {Level.BEGINNER: 0, Level.INTERMEDIATE: 1, Level
 # rationale (SPEC §6.6 step 4): stable placeholder so regeneration is reproducible.
 _PLAN_SEED_PLACEHOLDER = 0
 
+# rationale (SPEC §16 R6): relative systemic/CNS fatigue per movement pattern. High-CNS
+# compounds (hinge, vertical pull, squat) get extra intra-session rest, and a per-day
+# fatigue score is exposed so the user can see the split is balanced.
+PATTERN_FATIGUE: dict[MovementPattern, float] = {
+    MovementPattern.HINGE: 1.0,
+    MovementPattern.VERTICAL_PULL: 0.9,
+    MovementPattern.SQUAT: 0.85,
+    MovementPattern.HORIZONTAL_PULL: 0.6,
+    MovementPattern.VERTICAL_PUSH: 0.6,
+    MovementPattern.HORIZONTAL_PUSH: 0.5,
+    MovementPattern.CONDITIONING: 0.4,
+    MovementPattern.CORE: 0.2,
+}
+HIGH_FATIGUE_THRESHOLD = 0.8  # patterns at/above this are "high-CNS"
+FATIGUE_REST_BONUS = 15  # extra rest seconds for high-fatigue compounds
+
 # rationale (SPEC §16 R1): minimum effective weekly hard-set targets per primary
 # muscle. Hypertrophy responds to ~10+ hard sets/muscle/week; we use modest minimums
 # achievable in 3–5 days with this equipment. Only primary movers are targeted; small
@@ -299,6 +315,13 @@ def generate_plan(
             sets = (
                 rx["sets"] if slot.role == "conditioning" else max(2, round(rx["sets"] * week_mult))
             )
+            # high-CNS compounds get extra rest (SPEC §16 R6), then the age multiplier (R7).
+            base_rest = rx["rest_seconds"]
+            if (
+                slot.role == "compound"
+                and PATTERN_FATIGUE.get(pattern, 0.0) >= HIGH_FATIGUE_THRESHOLD
+            ):
+                base_rest += FATIGUE_REST_BONUS
             day.exercises.append(
                 PlanExerciseDraft(
                     exercise_id=chosen.id,
@@ -306,7 +329,7 @@ def generate_plan(
                     sets=sets,
                     target_reps_min=rx["reps_min"],
                     target_reps_max=rx["reps_max"],
-                    rest_seconds=round(rx["rest_seconds"] * rest_mult),
+                    rest_seconds=round(base_rest * rest_mult),
                     is_conditioning=slot.role == "conditioning",
                 )
             )
@@ -323,6 +346,37 @@ class CoveragePoint:
     sets: float
     target: int
     met: bool
+
+
+@dataclass
+class DayFatigue:
+    day_index: int
+    focus: Focus
+    fatigue: float
+
+
+class _DayLike(Protocol):
+    day_index: int
+    focus: Focus
+    exercises: list
+
+
+def fatigue_report(draft: PlanDraft, ex_by_id: dict[int, ExerciseLike]) -> list[DayFatigue]:
+    """Per-day systemic fatigue score (Σ pattern fatigue × sets) for the split (SPEC §16 R6).
+
+    Lets the user see the split is balanced; weighted by sets so volume counts.
+    """
+    days: list[_DayLike] = draft.days  # type: ignore[assignment]
+    report: list[DayFatigue] = []
+    for day in days:
+        score = 0.0
+        for pe in day.exercises:
+            ex = ex_by_id.get(pe.exercise_id)
+            if ex is None or ex.pattern is None:
+                continue
+            score += PATTERN_FATIGUE.get(ex.pattern, 0.0) * pe.sets
+        report.append(DayFatigue(day_index=day.day_index, focus=day.focus, fatigue=round(score, 1)))
+    return report
 
 
 def _muscle_credit(ex: ExerciseLike, muscle: str) -> float:

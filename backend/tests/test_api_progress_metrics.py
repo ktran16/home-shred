@@ -77,6 +77,34 @@ async def test_weekly_volume_bodyweight_proxy(
     assert data["chest"] == 800.0
 
 
+async def test_weekly_volume_uses_load_factor(client: AsyncClient, db: AsyncSession) -> None:
+    """Bodyweight volume scales by the exercise's load factor (SPEC §16 R4)."""
+    await client.put("/api/profile", json=PROFILE)  # bodyweight 80kg
+    ex = Exercise(
+        name="Push-Up",
+        slug="pushup_test",
+        equipment="bodyweight",
+        pattern="horizontal_push",
+        category="push",
+        primary_muscles=["chest"],
+        secondary_muscles=[],
+        level="beginner",
+        is_compound=True,
+        bodyweight_load_factor=0.5,
+        instructions=[],
+    )
+    db.add(ex)
+    await db.flush()
+    sess = WorkoutSession(date=date(2026, 6, 1), completed=True)
+    db.add(sess)
+    await db.flush()
+    db.add(SetLog(session_id=sess.id, exercise_id=ex.id, set_number=1, reps=10, weight_kg=None))
+    await db.commit()
+
+    data = {p["muscle"]: p["volume"] for p in (await client.get("/api/progress/volume")).json()}
+    assert data["chest"] == 400.0  # 10 reps × (80 × 0.5)
+
+
 async def test_incomplete_sessions_excluded(
     client: AsyncClient, db: AsyncSession, exercise: Exercise
 ) -> None:

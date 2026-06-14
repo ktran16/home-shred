@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Index, String, Text
+from sqlalchemy import Boolean, Float, Index, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,6 +28,11 @@ class Exercise(Base):
     level: Mapped[Level | None] = mapped_column(enum_col(Level), nullable=True)
     is_compound: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
+    )
+    # fraction of bodyweight that loads the prime movers, for the volume proxy of
+    # bodyweight exercises (SPEC §16 R4). 1.0 for weighted/uncurated exercises.
+    bodyweight_load_factor: Mapped[float] = mapped_column(
+        Float, nullable=False, default=1.0, server_default="1.0"
     )
     instructions: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, default=list, server_default="{}"

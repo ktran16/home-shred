@@ -2,9 +2,10 @@
 
 Weekly volume = Σ (reps × weight_kg) per primary muscle, grouped by ISO week.
 For bodyweight sets (weight_kg null) we use a proxy:
-    reps × (profile.weight_kg × muscle_factor),  muscle_factor defaults to 1.0.
-This is a deliberate simplification (a bodyweight movement does not load a muscle
-with the full body weight, but we have no per-exercise load data).
+    reps × (profile.weight_kg × exercise.bodyweight_load_factor),
+where the per-exercise load factor (SPEC §16 R4) estimates the fraction of bodyweight
+borne by the prime movers (e.g. push-up ≈ 0.64, pull-up ≈ 1.0). Still an
+approximation, but far better than counting full bodyweight on every movement.
 """
 
 from collections import defaultdict
@@ -17,9 +18,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Exercise, SetLog, WorkoutSession
 from app.services.profile import get_profile
 
-# rationale (SPEC §9): bodyweight proxy factor per muscle; default 1.0.
-DEFAULT_MUSCLE_FACTOR = 1.0
-MUSCLE_FACTORS: dict[str, float] = {}
 # Fallback bodyweight if no profile is set yet (documented simplification).
 FALLBACK_BODYWEIGHT_KG = 70.0
 
@@ -43,7 +41,12 @@ async def weekly_volume(
     bodyweight = float(profile.weight_kg) if profile else FALLBACK_BODYWEIGHT_KG
 
     stmt = (
-        select(SetLog, WorkoutSession.date, Exercise.primary_muscles)
+        select(
+            SetLog,
+            WorkoutSession.date,
+            Exercise.primary_muscles,
+            Exercise.bodyweight_load_factor,
+        )
         .join(WorkoutSession, SetLog.session_id == WorkoutSession.id)
         .join(Exercise, SetLog.exercise_id == Exercise.id)
         .where(WorkoutSession.completed.is_(True))
@@ -54,12 +57,12 @@ async def weekly_volume(
         stmt = stmt.where(WorkoutSession.date <= date_to)
 
     totals: dict[tuple[str, str], float] = defaultdict(float)
-    for log, sess_date, muscles in await db.execute(stmt):
+    for log, sess_date, muscles, load_factor in await db.execute(stmt):
         if log.weight_kg is not None:
             load = log.reps * float(log.weight_kg)
         else:
-            factor = MUSCLE_FACTORS.get("", DEFAULT_MUSCLE_FACTOR)
-            load = log.reps * (bodyweight * factor)
+            # bodyweight proxy scaled by the per-exercise load factor (SPEC §16 R4)
+            load = log.reps * (bodyweight * load_factor)
         week = _iso_week(sess_date)
         for muscle in muscles or []:
             totals[(week, muscle)] += load

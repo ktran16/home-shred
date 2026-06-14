@@ -8,7 +8,9 @@ from app.enums import Equipment, Goal
 from app.models import Exercise, Plan, PlanDay, PlanExercise
 from app.services.plan_generator import (
     CoveragePoint,
+    DayFatigue,
     coverage_report,
+    fatigue_report,
     generate_plan,
     scaled_set_targets,
 )
@@ -107,6 +109,15 @@ async def plan_coverage(db: AsyncSession, plan_id: int) -> list[CoveragePoint] |
     profile = await get_profile(db)
     targets = scaled_set_targets(profile.age if profile else None, plan.mesocycle_week)  # §16 R7/R2
     return coverage_report(plan, ex_by_id, targets)  # type: ignore[arg-type]
+
+
+async def plan_fatigue(db: AsyncSession, plan_id: int) -> list[DayFatigue] | None:
+    """Per-day fatigue score for a persisted plan (SPEC §16 R6)."""
+    plan = await _load_plan(db, plan_id)
+    if plan is None:
+        return None
+    ex_by_id = {pe.exercise_id: pe.exercise for day in plan.days for pe in day.exercises}
+    return fatigue_report(plan, ex_by_id)  # type: ignore[arg-type]
 
 
 async def activate_plan(db: AsyncSession, plan_id: int) -> Plan | None:

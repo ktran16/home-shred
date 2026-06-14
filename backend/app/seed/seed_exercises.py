@@ -18,7 +18,7 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.data.exercise_pools import CURATION, PATTERN_CATEGORY
+from app.data.exercise_pools import CURATION, PATTERN_CATEGORY, load_factor
 from app.db import async_session
 from app.enums import Level, MovementPattern
 from app.models import Exercise
@@ -61,6 +61,7 @@ def build_rows() -> list[dict]:
                 "secondary_muscles": src.get("secondaryMuscles") or [],
                 "level": _to_level(src.get("level")),
                 "is_compound": cur.is_compound,
+                "bodyweight_load_factor": load_factor(slug),
                 "instructions": src.get("instructions") or [],
             }
         )

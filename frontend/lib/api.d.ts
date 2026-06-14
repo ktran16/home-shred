@@ -125,6 +125,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{plan_id}/fatigue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Plan Fatigue */
+        get: operations["plan_fatigue_api_plans__plan_id__fatigue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{plan_id}/activate": {
         parameters: {
             query?: never;
@@ -326,6 +343,14 @@ export interface components {
             target: number;
             /** Met */
             met: boolean;
+        };
+        /** DayFatigueOut */
+        DayFatigueOut: {
+            /** Day Index */
+            day_index: number;
+            focus: components["schemas"]["Focus"];
+            /** Fatigue */
+            fatigue: number;
         };
         /**
          * Equipment
@@ -874,6 +899,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CoveragePointOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_fatigue_api_plans__plan_id__fatigue_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayFatigueOut"][];
                 };
             };
             /** @description Validation Error */

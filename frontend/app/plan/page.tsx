@@ -42,16 +42,30 @@ function useActivePlan() {
       return data ?? [];
     },
   });
+  const fatigue = useQuery({
+    queryKey: ["plan-fatigue", active?.id],
+    enabled: active != null,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/plans/{plan_id}/fatigue", {
+        params: { path: { plan_id: active!.id } },
+      });
+      return data ?? [];
+    },
+  });
+  const fatigueByDay: Record<number, number> = {};
+  for (const f of fatigue.data ?? []) fatigueByDay[f.day_index] = f.fatigue;
+
   return {
     isLoading: plans.isLoading || detail.isLoading,
     plan: detail.data,
     coverage: coverage.data ?? [],
+    fatigueByDay,
     hasAny: !!active,
   };
 }
 
 export default function PlanPage() {
-  const { isLoading, plan, coverage, hasAny } = useActivePlan();
+  const { isLoading, plan, coverage, fatigueByDay, hasAny } = useActivePlan();
   const qc = useQueryClient();
 
   const nextWeek = useMutation({
@@ -134,9 +148,16 @@ export default function PlanPage() {
         {plan.days.map((day) => (
           <Card key={day.id} className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="font-semibold">
-                Day {day.day_index} · {FOCUS_LABEL[day.focus] ?? day.focus}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">
+                  Day {day.day_index} · {FOCUS_LABEL[day.focus] ?? day.focus}
+                </span>
+                {fatigueByDay[day.day_index] != null && (
+                  <Badge title="systemic fatigue score">
+                    ⚡ {fatigueByDay[day.day_index]}
+                  </Badge>
+                )}
+              </div>
               <Link href={`/workout/${day.id}`}>
                 <Button className="h-9 min-h-0 px-3 text-sm">Start</Button>
               </Link>

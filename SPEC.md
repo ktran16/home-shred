@@ -650,14 +650,21 @@ adding ML:
   grind (2 sessions ≥ `RPE_DELOAD_FLOOR` = 9.5). No-RPE logs fall back to the rep-only
   rule (backward compatible). The FE workout runner captures per-set RPE. Tested in
   `test_progression.py`.
-- **R4 — Per-exercise bodyweight load factors** in `exercise_pools.py` to fix the
-  volume proxy (R5 depends on this).
+- **R4 — Per-exercise bodyweight load factors. ✅ DONE.** `BODYWEIGHT_LOAD_FACTORS` in
+  `exercise_pools.py` (push-up ≈ 0.64, pull-up ≈ 1.0, plank ≈ 0.3, …) is seeded onto
+  `exercises.bodyweight_load_factor` (new migration). `volume.py` now uses
+  `reps × bodyweight × load_factor` for bodyweight sets instead of full bodyweight.
 - **R5 — Anti-staleness rotation. ✅ DONE.** The selection RNG seed includes the
   mesocycle week (`hash((placeholder, week, day, slot))`), so exercises rotate week to
   week while staying reproducible per (week, day, slot). Combines with R2: each new week
   is both periodised and freshly rotated.
-- **R6 — Fatigue balancing.** Spread high-CNS movements (e.g. heavy hinge/pull) across
-  the split and avoid stacking them on consecutive days.
+- **R6 — Fatigue management. ✅ DONE.** `PATTERN_FATIGUE` weights movement patterns by
+  systemic/CNS cost. High-CNS compounds (hinge, vertical pull, squat) get +15s rest
+  (`FATIGUE_REST_BONUS`, applied before the age multiplier). A per-day fatigue score
+  (`fatigue_report` + `GET /api/plans/{id}/fatigue`, shown on `/plan`) surfaces balance;
+  the canonical U/L split already alternates so consecutive days aren't both peak-fatigue
+  (verified in tests). Note: the 5-day PPL split has an inherent Pull→Legs adjacency the
+  report makes visible (splits in §6.2 are not reordered).
 - **R7 — Age-based recovery/volume. ✅ DONE.** The profile `age` now feeds the workout
   plan (previously only nutrition): `AGE_ADJUSTMENTS` bands (≥55, ≥40, else) yield a
   `rest_multiplier` (longer rests with age — ×1.10 / ×1.20) and a `volume_factor` that

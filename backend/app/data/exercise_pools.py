@@ -35,6 +35,61 @@ PATTERN_CATEGORY: dict[MovementPattern, str] = {
     MovementPattern.CONDITIONING: "conditioning",
 }
 
+# rationale (SPEC §16 R4): fraction of bodyweight borne by the prime movers in a
+# bodyweight exercise, for the volume proxy. Rough biomechanical estimates; weighted
+# (dumbbell) exercises use the logged weight, so their factor is irrelevant. Anything
+# not listed defaults to DEFAULT_LOAD_FACTOR.
+DEFAULT_LOAD_FACTOR = 1.0
+BODYWEIGHT_LOAD_FACTORS: dict[str, float] = {
+    # horizontal push
+    "Pushups": 0.64,
+    "Push-Up_Wide": 0.64,
+    "Push-Ups_With_Feet_Elevated": 0.74,
+    "Incline_Push-Up": 0.45,
+    "Decline_Push-Up": 0.74,
+    "Single-Arm_Push-Up": 0.95,
+    # vertical push / pull (full bodyweight on the bar)
+    "Handstand_Push-Ups": 0.95,
+    "Pullups": 1.0,
+    "Chin-Up": 1.0,
+    "Wide-Grip_Rear_Pull-Up": 1.0,
+    "V-Bar_Pullup": 1.0,
+    "Inverted_Row": 0.55,
+    # squat / hinge (bodyweight)
+    "Bodyweight_Squat": 0.65,
+    "Bodyweight_Walking_Lunge": 0.85,
+    "Natural_Glute_Ham_Raise": 0.6,
+    "Hyperextensions_With_No_Hyperextension_Bench": 0.5,
+    "Single_Leg_Glute_Bridge": 0.5,
+    "Butt_Lift_Bridge": 0.4,
+    "Glute_Kickback": 0.3,
+    # core
+    "Plank": 0.3,
+    "Side_Bridge": 0.3,
+    "Crunches": 0.3,
+    "3_4_Sit-Up": 0.35,
+    "Cross-Body_Crunch": 0.3,
+    "Decline_Crunch": 0.4,
+    "Russian_Twist": 0.3,
+    "Bent-Knee_Hip_Raise": 0.35,
+    "Flat_Bench_Lying_Leg_Raise": 0.4,
+    "Hanging_Leg_Raise": 0.4,
+    "Hanging_Pike": 0.5,
+    # conditioning (bodyweight)
+    "Mountain_Climbers": 0.4,
+    "Rocket_Jump": 0.7,
+    "Knee_Tuck_Jump": 0.7,
+    "Star_Jump": 0.6,
+    "Split_Jump": 0.7,
+    "Scissors_Jump": 0.6,
+    "Wind_Sprints": 0.5,
+}
+
+
+def load_factor(slug: str) -> float:
+    return BODYWEIGHT_LOAD_FACTORS.get(slug, DEFAULT_LOAD_FACTOR)
+
+
 _P = MovementPattern
 _E = Equipment
 

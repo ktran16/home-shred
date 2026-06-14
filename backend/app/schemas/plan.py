@@ -58,3 +58,9 @@ class CoveragePointOut(BaseModel):
     sets: float
     target: int
     met: bool
+
+
+class DayFatigueOut(BaseModel):
+    day_index: int
+    focus: Focus
+    fatigue: float

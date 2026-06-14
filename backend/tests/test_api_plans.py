@@ -80,3 +80,14 @@ async def test_plan_coverage_endpoint(client: AsyncClient, seeded: None) -> None
         assert by_muscle[m]["met"] is True
 
     assert (await client.get("/api/plans/999/coverage")).status_code == 404
+
+
+async def test_plan_fatigue_endpoint(client: AsyncClient, seeded: None) -> None:
+    await client.put("/api/profile", json=PROFILE)
+    plan = (await client.post("/api/plans", json={"days_per_week": 4})).json()
+    r = await client.get(f"/api/plans/{plan['id']}/fatigue")
+    assert r.status_code == 200
+    report = r.json()
+    assert [d["day_index"] for d in report] == [1, 2, 3, 4]
+    assert all(d["fatigue"] > 0 for d in report)
+    assert (await client.get("/api/plans/999/fatigue")).status_code == 404

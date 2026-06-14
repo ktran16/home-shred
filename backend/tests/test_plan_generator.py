@@ -12,6 +12,7 @@ from app.services.plan_generator import (
     WEEKLY_SET_TARGETS,
     age_adjustment,
     coverage_report,
+    fatigue_report,
     generate_plan,
     scaled_set_targets,
     weekly_set_coverage,
@@ -227,3 +228,33 @@ def test_mesocycle_position_wraps() -> None:
     from app.services.plan_generator import mesocycle_position
 
     assert [mesocycle_position(w) for w in (1, 2, 3, 4, 5, 8)] == [1, 2, 3, 4, 1, 4]
+
+
+# --- R6 fatigue management (SPEC §16) ---
+
+
+def test_high_cns_compounds_get_more_rest() -> None:
+    """A hinge compound (high-CNS) rests longer than a horizontal-push compound."""
+    ex = make_exercises()
+    by_id = {e.id: e for e in ex}
+    draft = generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, ex)
+    rests = {"hinge": [], "horizontal_push": []}
+    for d in draft.days:
+        for pe in d.exercises:
+            pat = by_id[pe.exercise_id].pattern
+            if pat in rests and pe.sets:  # compound slots only have these as compounds
+                rests[str(pat)].append(pe.rest_seconds)
+    assert max(rests["hinge"]) > min(rests["horizontal_push"])
+
+
+def test_fatigue_report_balances_4day_split() -> None:
+    ex = make_exercises()
+    report = fatigue_report(
+        generate_plan(Goal.SHRED, 4, Level.INTERMEDIATE, ALLOWED, ex),
+        {e.id: e for e in ex},
+    )
+    assert [r.day_index for r in report] == [1, 2, 3, 4]
+    assert all(r.fatigue > 0 for r in report)
+    # U/L alternation: no two consecutive days are both peak-fatigue
+    high = [r.fatigue >= max(x.fatigue for x in report) for r in report]
+    assert not any(high[i] and high[i + 1] for i in range(len(high) - 1))
