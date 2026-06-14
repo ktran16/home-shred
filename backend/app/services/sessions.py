@@ -93,10 +93,14 @@ async def add_set_log(db: AsyncSession, session_id: int, data: SetLogIn) -> SetL
     return log
 
 
-async def complete_session(db: AsyncSession, session_id: int) -> WorkoutSession | None:
+async def complete_session(
+    db: AsyncSession, session_id: int, notes: str | None = None
+) -> WorkoutSession | None:
     session = await db.get(WorkoutSession, session_id)
     if session is None:
         return None
+    if notes is not None:
+        session.notes = notes
     session.completed = True
     await db.commit()
     return await _load_session(db, session_id)

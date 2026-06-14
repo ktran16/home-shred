@@ -7,8 +7,19 @@ import { useEffect, useRef, useState } from "react";
 import { MovementCue } from "@/components/movement-cue";
 import { ConditioningTimer, RestTimer } from "@/components/rest-timer";
 import { Badge, Button, Card, Input } from "@/components/ui";
-import { api, type PlanDayOut, type PlanExerciseOut, type SuggestedTargetOut } from "@/lib/api";
+import {
+  api,
+  type ExerciseOut,
+  type PlanDayOut,
+  type PlanExerciseOut,
+  type SuggestedTargetOut,
+} from "@/lib/api";
 import { exerciseInstructions, movementLabel, primaryMuscleText } from "@/lib/exercise-cues";
+import {
+  buildSessionSummary,
+  formatSessionNotes,
+  type LoggedSetSummary,
+} from "@/lib/session-summary";
 import { exerciseVoiceCue, restCompleteCue, restStartedCue } from "@/lib/voice-cues";
 import {
   readinessRecommendation,
@@ -49,8 +60,12 @@ function Runner({ day }: { day: PlanDayOut }) {
   const [targets, setTargets] = useState<Record<number, SuggestedTargetOut>>({});
   const [rest, setRest] = useState<{ key: number; seconds: number } | null>(null);
   const [readiness, setReadiness] = useState<Readiness>({ energy: 4, soreness: 2, sleep: 4 });
+  const [loggedSets, setLoggedSets] = useState<LoggedSetSummary[]>([]);
+  const [notes, setNotes] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const recommendation = readinessRecommendation(readiness);
   const warmup = warmupForExercises(day.exercises);
+  const summary = buildSessionSummary(loggedSets);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -80,12 +95,20 @@ function Runner({ day }: { day: PlanDayOut }) {
       if (sessionId == null) return;
       await api.PATCH("/api/sessions/{session_id}/complete", {
         params: { path: { session_id: sessionId } },
+        body: { notes: formatSessionNotes({ notes, tags, summary }) },
       });
     },
     onSuccess: () => router.push("/progress"),
   });
 
-  const onSetLogged = (restSeconds: number) => {
+  const onSetLogged = (restSeconds: number, log: LoggedSetSummary) => {
+    setLoggedSets((logs) => [
+      ...logs.filter(
+        (existing) =>
+          !(existing.exerciseId === log.exerciseId && existing.setNumber === log.setNumber),
+      ),
+      log,
+    ]);
     setRest((r) => ({ key: (r?.key ?? 0) + 1, seconds: restSeconds }));
     voice.speak(restStartedCue(restSeconds));
   };
@@ -131,9 +154,15 @@ function Runner({ day }: { day: PlanDayOut }) {
         />
       ))}
 
-      <Button onClick={() => complete.mutate()} disabled={complete.isPending}>
-        {complete.isPending ? "Finishing…" : "Complete workout"}
-      </Button>
+      <FinishWorkoutPanel
+        summary={summary}
+        tags={tags}
+        setTags={setTags}
+        notes={notes}
+        setNotes={setNotes}
+        onComplete={() => complete.mutate()}
+        isPending={complete.isPending}
+      />
 
       {rest && (
         <RestTimer
@@ -342,39 +371,42 @@ function ExerciseBlock({
   pe: PlanExerciseOut;
   target?: SuggestedTargetOut;
   sessionId: number;
-  onSetLogged: (rest: number) => void;
+  onSetLogged: (rest: number, log: LoggedSetSummary) => void;
   speak: (text: string, force?: boolean) => void;
   voiceEnabled: boolean;
   setReduction: number;
   restBonus: number;
 }) {
+  const [exercise, setExercise] = useState<ExerciseOut>(pe.exercise);
+  const effectivePe: PlanExerciseOut = { ...pe, exercise_id: exercise.id, exercise };
   const sets = Math.max(1, (target?.sets ?? pe.sets) - setReduction);
   const repsDefault = target?.reps_min ?? pe.target_reps_min;
   const weightDefault = target?.suggested_weight_kg ?? null;
-  const instructions = exerciseInstructions(pe.exercise);
+  const instructions = exerciseInstructions(exercise);
   const restSeconds = pe.rest_seconds + restBonus;
 
   if (pe.is_conditioning) {
     return (
       <Card className="flex flex-col gap-4">
         <div className="grid gap-4 md:grid-cols-[180px_1fr]">
-          <MovementCue pattern={pe.exercise.pattern} />
+          <MovementCue pattern={exercise.pattern} />
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold">{pe.exercise.name}</span>
+              <span className="font-semibold">{exercise.name}</span>
               <Badge>conditioning</Badge>
-              <Badge>{movementLabel(pe.exercise.pattern)}</Badge>
+              <Badge>{movementLabel(exercise.pattern)}</Badge>
               {setReduction > 0 && <Badge>adjusted</Badge>}
               <Button
                 variant="secondary"
                 className="h-8 min-h-0 px-2 text-xs"
-                onClick={() => speak(exerciseVoiceCue(pe, sets), true)}
+                onClick={() => speak(exerciseVoiceCue(effectivePe, sets), true)}
               >
                 Play cues
               </Button>
             </div>
-            <p className="text-sm text-zinc-500">{primaryMuscleText(pe.exercise)}</p>
+            <p className="text-sm text-zinc-500">{primaryMuscleText(exercise)}</p>
             <InstructionList instructions={instructions} />
+            <SubstitutionPanel current={exercise} onSelect={setExercise} />
           </div>
         </div>
         <ConditioningTimer rounds={sets} />
@@ -385,28 +417,29 @@ function ExerciseBlock({
   return (
     <Card className="flex flex-col gap-4">
       <div className="grid gap-4 md:grid-cols-[180px_1fr]">
-        <MovementCue pattern={pe.exercise.pattern} />
+        <MovementCue pattern={exercise.pattern} />
         <div className="flex flex-col gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold">{pe.exercise.name}</span>
-              <Badge>{movementLabel(pe.exercise.pattern)}</Badge>
+              <span className="font-semibold">{exercise.name}</span>
+              <Badge>{movementLabel(exercise.pattern)}</Badge>
               {voiceEnabled && <Badge>voice ready</Badge>}
               {setReduction > 0 && <Badge>adjusted</Badge>}
               <Button
                 variant="secondary"
                 className="h-8 min-h-0 px-2 text-xs"
-                onClick={() => speak(exerciseVoiceCue(pe, sets), true)}
+                onClick={() => speak(exerciseVoiceCue(effectivePe, sets), true)}
               >
                 Play cues
               </Button>
             </div>
             <div className="mt-1 text-xs text-zinc-500">
               {sets} sets · {pe.target_reps_min}-{pe.target_reps_max} reps · {restSeconds}s rest ·{" "}
-              {primaryMuscleText(pe.exercise)}
+              {primaryMuscleText(exercise)}
             </div>
           </div>
           <InstructionList instructions={instructions} />
+          <SubstitutionPanel current={exercise} onSelect={setExercise} />
         </div>
       </div>
 
@@ -415,7 +448,7 @@ function ExerciseBlock({
           <SetRow
             key={i}
             setNumber={i + 1}
-            exerciseId={pe.exercise_id}
+            exercise={exercise}
             sessionId={sessionId}
             restSeconds={restSeconds}
             defaultReps={repsDefault}
@@ -425,6 +458,76 @@ function ExerciseBlock({
         ))}
       </div>
     </Card>
+  );
+}
+
+function SubstitutionPanel({
+  current,
+  onSelect,
+}: {
+  current: ExerciseOut;
+  onSelect: (exercise: ExerciseOut) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const alternatives = useQuery({
+    queryKey: ["exercise-substitutions", current.pattern],
+    enabled: open && current.pattern != null,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/exercises", {
+        params: { query: { pattern: current.pattern } },
+      });
+      return (data ?? []).filter((exercise) => exercise.id !== current.id).slice(0, 5);
+    },
+  });
+
+  return (
+    <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Substitute
+          </div>
+          <div className="text-sm text-zinc-600 dark:text-zinc-400">
+            Same pattern if this movement does not fit today.
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          className="h-9 min-h-0 px-3 text-sm"
+          onClick={() => setOpen((value) => !value)}
+          disabled={current.pattern == null}
+        >
+          {open ? "Hide" : "Swap"}
+        </Button>
+      </div>
+      {open && (
+        <div className="mt-3 grid gap-2">
+          {alternatives.isLoading ? (
+            <p className="text-sm text-zinc-500">Loading alternatives...</p>
+          ) : alternatives.data?.length ? (
+            alternatives.data.map((exercise) => (
+              <button
+                key={exercise.id}
+                type="button"
+                onClick={() => {
+                  onSelect(exercise);
+                  setOpen(false);
+                }}
+                className="rounded-lg border border-zinc-200 bg-white p-3 text-left hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900"
+              >
+                <div className="font-medium">{exercise.name}</div>
+                <div className="text-xs capitalize text-zinc-500">
+                  {exercise.equipment.replace("_", " ")} · {primaryMuscleText(exercise)}
+                </div>
+              </button>
+            ))
+          ) : (
+            <p className="text-sm text-zinc-500">No alternatives found.</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -446,7 +549,7 @@ function InstructionList({ instructions }: { instructions: string[] }) {
 
 function SetRow({
   setNumber,
-  exerciseId,
+  exercise,
   sessionId,
   restSeconds,
   defaultReps,
@@ -454,12 +557,12 @@ function SetRow({
   onLogged,
 }: {
   setNumber: number;
-  exerciseId: number;
+  exercise: ExerciseOut;
   sessionId: number;
   restSeconds: number;
   defaultReps: number;
   defaultWeight: number | null;
-  onLogged: (rest: number) => void;
+  onLogged: (rest: number, log: LoggedSetSummary) => void;
 }) {
   const [reps, setReps] = useState<number>(defaultReps);
   const [weight, setWeight] = useState<string>(defaultWeight != null ? String(defaultWeight) : "");
@@ -471,7 +574,7 @@ function SetRow({
       const { error } = await api.POST("/api/sessions/{session_id}/sets", {
         params: { path: { session_id: sessionId } },
         body: {
-          exercise_id: exerciseId,
+          exercise_id: exercise.id,
           set_number: setNumber,
           reps,
           weight_kg: weight === "" ? null : Number(weight),
@@ -482,7 +585,14 @@ function SetRow({
     },
     onSuccess: () => {
       setDone(true);
-      onLogged(restSeconds);
+      onLogged(restSeconds, {
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        setNumber,
+        reps,
+        weightKg: weight === "" ? null : Number(weight),
+        rpe: rpe === "" ? null : Number(rpe),
+      });
     },
   });
 
@@ -543,6 +653,86 @@ function SetRow({
       >
         {done ? "✓" : "Log"}
       </Button>
+    </div>
+  );
+}
+
+const TAGS = ["felt strong", "low energy", "joint pain", "rushed", "great pump", "bad sleep"];
+
+function FinishWorkoutPanel({
+  summary,
+  tags,
+  setTags,
+  notes,
+  setNotes,
+  onComplete,
+  isPending,
+}: {
+  summary: ReturnType<typeof buildSessionSummary>;
+  tags: string[];
+  setTags: React.Dispatch<React.SetStateAction<string[]>>;
+  notes: string;
+  setNotes: (notes: string) => void;
+  onComplete: () => void;
+  isPending: boolean;
+}) {
+  const toggleTag = (tag: string) =>
+    setTags((current) =>
+      current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag],
+    );
+
+  return (
+    <Card className="flex flex-col gap-4">
+      <div>
+        <h2 className="font-semibold">Finish summary</h2>
+        <p className="text-sm text-zinc-500">Review the work and add notes before saving.</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-4">
+        <SummaryTile label="Sets" value={summary.totalSets} />
+        <SummaryTile label="Reps" value={summary.totalReps} />
+        <SummaryTile label="Weighted" value={summary.weightedSets} />
+        <SummaryTile label="Avg RPE" value={summary.averageRpe ?? "—"} />
+      </div>
+      {summary.hardestExercise && (
+        <div className="rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-950">
+          Hardest by reps: <span className="font-semibold">{summary.hardestExercise}</span>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {TAGS.map((tag) => (
+          <button
+            key={tag}
+            type="button"
+            onClick={() => toggleTag(tag)}
+            className={`rounded-full px-3 py-1 text-sm font-medium ${
+              tags.includes(tag)
+                ? "bg-zinc-950 text-white dark:bg-zinc-50 dark:text-zinc-950"
+                : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+            }`}
+          >
+            {tag}
+          </button>
+        ))}
+      </div>
+      <textarea
+        className="min-h-24 rounded-lg border border-zinc-300 bg-white p-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950"
+        placeholder="Session notes"
+        value={notes}
+        maxLength={1200}
+        onChange={(event) => setNotes(event.target.value)}
+      />
+      <Button onClick={onComplete} disabled={isPending}>
+        {isPending ? "Finishing..." : "Complete workout"}
+      </Button>
+    </Card>
+  );
+}
+
+function SummaryTile({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+      <div className="text-xs text-zinc-500">{label}</div>
+      <div className="mt-1 text-2xl font-bold tabular-nums">{value}</div>
     </div>
   );
 }

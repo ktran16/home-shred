@@ -673,6 +673,11 @@ export interface components {
              */
             updated_at: string;
         };
+        /** SessionCompleteIn */
+        SessionCompleteIn: {
+            /** Notes */
+            notes?: string | null;
+        };
         /** SessionCreateIn */
         SessionCreateIn: {
             /** Plan Day Id */
@@ -1371,7 +1376,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SessionCompleteIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

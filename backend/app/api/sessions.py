@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.schemas.session import SessionCreateIn, SessionOut, SetLogIn, SetLogOut
+from app.schemas.session import SessionCompleteIn, SessionCreateIn, SessionOut, SetLogIn, SetLogOut
 from app.services import sessions as svc
 from app.services.sessions import PlanDayNotFoundError
 
@@ -51,8 +51,12 @@ async def add_set(session_id: int, data: SetLogIn, db: AsyncSession = Depends(ge
 
 
 @router.patch("/{session_id}/complete", response_model=SessionOut)
-async def complete_session(session_id: int, db: AsyncSession = Depends(get_db)) -> SessionOut:
-    session = await svc.complete_session(db, session_id)
+async def complete_session(
+    session_id: int,
+    data: SessionCompleteIn | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> SessionOut:
+    session = await svc.complete_session(db, session_id, notes=data.notes if data else None)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return SessionOut.model_validate(session)

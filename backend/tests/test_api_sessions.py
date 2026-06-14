@@ -60,8 +60,12 @@ async def test_log_sets_and_complete(client: AsyncClient, seeded: None) -> None:
     detail = (await client.get(f"/api/sessions/{sess['id']}")).json()
     assert len(detail["set_logs"]) == 3
 
-    done = await client.patch(f"/api/sessions/{sess['id']}/complete")
+    done = await client.patch(
+        f"/api/sessions/{sess['id']}/complete",
+        json={"notes": "Tags: felt strong\n\nGood session."},
+    )
     assert done.status_code == 200 and done.json()["completed"] is True
+    assert "felt strong" in done.json()["notes"]
 
 
 async def test_progression_applies_next_session(client: AsyncClient, seeded: None) -> None:

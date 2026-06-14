@@ -10,6 +10,10 @@ class SessionCreateIn(BaseModel):
     date: date_type | None = None
 
 
+class SessionCompleteIn(BaseModel):
+    notes: str | None = Field(default=None, max_length=2000)
+
+
 class SetLogIn(BaseModel):
     exercise_id: int
     set_number: int = Field(ge=1)
