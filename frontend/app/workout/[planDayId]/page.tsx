@@ -10,6 +10,13 @@ import { Badge, Button, Card, Input } from "@/components/ui";
 import { api, type PlanDayOut, type PlanExerciseOut, type SuggestedTargetOut } from "@/lib/api";
 import { exerciseInstructions, movementLabel, primaryMuscleText } from "@/lib/exercise-cues";
 import { exerciseVoiceCue, restCompleteCue, restStartedCue } from "@/lib/voice-cues";
+import {
+  readinessRecommendation,
+  readinessVoiceCue,
+  warmupForExercises,
+  warmupVoiceCue,
+  type Readiness,
+} from "@/lib/workout-assist";
 
 export default function WorkoutPage() {
   const params = useParams<{ planDayId: string }>();
@@ -41,6 +48,9 @@ function Runner({ day }: { day: PlanDayOut }) {
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [targets, setTargets] = useState<Record<number, SuggestedTargetOut>>({});
   const [rest, setRest] = useState<{ key: number; seconds: number } | null>(null);
+  const [readiness, setReadiness] = useState<Readiness>({ energy: 4, soreness: 2, sleep: 4 });
+  const recommendation = readinessRecommendation(readiness);
+  const warmup = warmupForExercises(day.exercises);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -98,6 +108,15 @@ function Runner({ day }: { day: PlanDayOut }) {
         </div>
       </div>
 
+      <ReadinessPanel
+        readiness={readiness}
+        setReadiness={setReadiness}
+        recommendation={recommendation}
+        speak={voice.speak}
+      />
+
+      <WarmupPanel drills={warmup} speak={voice.speak} />
+
       {day.exercises.map((pe) => (
         <ExerciseBlock
           key={pe.id}
@@ -107,6 +126,8 @@ function Runner({ day }: { day: PlanDayOut }) {
           onSetLogged={onSetLogged}
           speak={voice.speak}
           voiceEnabled={voice.enabled}
+          setReduction={recommendation.setReduction}
+          restBonus={recommendation.restBonus}
         />
       ))}
 
@@ -123,6 +144,132 @@ function Runner({ day }: { day: PlanDayOut }) {
         />
       )}
     </div>
+  );
+}
+
+function ReadinessPanel({
+  readiness,
+  setReadiness,
+  recommendation,
+  speak,
+}: {
+  readiness: Readiness;
+  setReadiness: React.Dispatch<React.SetStateAction<Readiness>>;
+  recommendation: ReturnType<typeof readinessRecommendation>;
+  speak: (text: string, force?: boolean) => void;
+}) {
+  return (
+    <Card className="grid gap-4 xl:grid-cols-[1fr_260px]">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <ReadinessScale
+          label="Energy"
+          value={readiness.energy}
+          onChange={(energy) => setReadiness((r) => ({ ...r, energy }))}
+        />
+        <ReadinessScale
+          label="Soreness"
+          value={readiness.soreness}
+          onChange={(soreness) => setReadiness((r) => ({ ...r, soreness }))}
+        />
+        <ReadinessScale
+          label="Sleep"
+          value={readiness.sleep}
+          onChange={(sleep) => setReadiness((r) => ({ ...r, sleep }))}
+        />
+      </div>
+      <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Today
+            </div>
+            <div className="mt-1 font-semibold">{recommendation.label}</div>
+          </div>
+          <div className="text-3xl font-bold tabular-nums">{recommendation.score}%</div>
+        </div>
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{recommendation.detail}</p>
+        <Button
+          variant="secondary"
+          className="mt-3 h-9 min-h-0 w-full px-3 text-sm"
+          onClick={() => speak(readinessVoiceCue(recommendation), true)}
+        >
+          Read readiness
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function ReadinessScale({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-semibold">{label}</span>
+        <span className="text-sm tabular-nums text-zinc-500">{value}/5</span>
+      </div>
+      <div className="grid grid-cols-5 gap-1">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            aria-label={`${label} ${n}`}
+            onClick={() => onChange(n)}
+            className={`h-9 rounded-md text-sm font-semibold ${
+              n === value
+                ? "bg-zinc-950 text-white dark:bg-zinc-50 dark:text-zinc-950"
+                : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+            }`}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WarmupPanel({
+  drills,
+  speak,
+}: {
+  drills: string[];
+  speak: (text: string, force?: boolean) => void;
+}) {
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">Warm-up</h2>
+          <p className="text-sm text-zinc-500">Move through these before your first work set.</p>
+        </div>
+        <Button
+          variant="secondary"
+          className="h-9 min-h-0 px-3 text-sm"
+          onClick={() => speak(warmupVoiceCue(drills), true)}
+        >
+          Play warm-up
+        </Button>
+      </div>
+      <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {drills.map((drill, index) => (
+          <li
+            key={`${drill}-${index}`}
+            className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+          >
+            <span className="mr-2 font-semibold text-zinc-400">{index + 1}</span>
+            {drill}
+          </li>
+        ))}
+      </ol>
+    </Card>
   );
 }
 
@@ -189,6 +336,8 @@ function ExerciseBlock({
   onSetLogged,
   speak,
   voiceEnabled,
+  setReduction,
+  restBonus,
 }: {
   pe: PlanExerciseOut;
   target?: SuggestedTargetOut;
@@ -196,11 +345,14 @@ function ExerciseBlock({
   onSetLogged: (rest: number) => void;
   speak: (text: string, force?: boolean) => void;
   voiceEnabled: boolean;
+  setReduction: number;
+  restBonus: number;
 }) {
-  const sets = target?.sets ?? pe.sets;
+  const sets = Math.max(1, (target?.sets ?? pe.sets) - setReduction);
   const repsDefault = target?.reps_min ?? pe.target_reps_min;
   const weightDefault = target?.suggested_weight_kg ?? null;
   const instructions = exerciseInstructions(pe.exercise);
+  const restSeconds = pe.rest_seconds + restBonus;
 
   if (pe.is_conditioning) {
     return (
@@ -212,6 +364,7 @@ function ExerciseBlock({
               <span className="font-semibold">{pe.exercise.name}</span>
               <Badge>conditioning</Badge>
               <Badge>{movementLabel(pe.exercise.pattern)}</Badge>
+              {setReduction > 0 && <Badge>adjusted</Badge>}
               <Button
                 variant="secondary"
                 className="h-8 min-h-0 px-2 text-xs"
@@ -239,6 +392,7 @@ function ExerciseBlock({
               <span className="font-semibold">{pe.exercise.name}</span>
               <Badge>{movementLabel(pe.exercise.pattern)}</Badge>
               {voiceEnabled && <Badge>voice ready</Badge>}
+              {setReduction > 0 && <Badge>adjusted</Badge>}
               <Button
                 variant="secondary"
                 className="h-8 min-h-0 px-2 text-xs"
@@ -248,7 +402,7 @@ function ExerciseBlock({
               </Button>
             </div>
             <div className="mt-1 text-xs text-zinc-500">
-              {pe.target_reps_min}-{pe.target_reps_max} reps · {pe.rest_seconds}s rest ·{" "}
+              {sets} sets · {pe.target_reps_min}-{pe.target_reps_max} reps · {restSeconds}s rest ·{" "}
               {primaryMuscleText(pe.exercise)}
             </div>
           </div>
@@ -263,7 +417,7 @@ function ExerciseBlock({
             setNumber={i + 1}
             exerciseId={pe.exercise_id}
             sessionId={sessionId}
-            restSeconds={pe.rest_seconds}
+            restSeconds={restSeconds}
             defaultReps={repsDefault}
             defaultWeight={weightDefault}
             onLogged={onSetLogged}
@@ -333,15 +487,34 @@ function SetRow({
   });
 
   return (
-    <div className="grid grid-cols-[24px_1fr_1fr_74px_48px] items-center gap-2">
-      <span className="text-sm font-medium text-zinc-500">{setNumber}</span>
-      <Input
-        type="number"
-        aria-label="reps"
-        className="h-10 min-h-0"
-        value={reps}
-        onChange={(e) => setReps(Number(e.target.value))}
-      />
+    <div className="grid gap-2 rounded-lg bg-white p-2 dark:bg-zinc-900 sm:grid-cols-[56px_180px_1fr_84px_52px] sm:items-center">
+      <span className="text-sm font-semibold text-zinc-500">Set {setNumber}</span>
+      <div className="grid grid-cols-[44px_1fr_44px] items-center gap-1">
+        <Button
+          type="button"
+          variant="secondary"
+          className="h-11 min-h-0 px-0 text-xl"
+          onClick={() => setReps((r) => Math.max(0, r - 1))}
+        >
+          -
+        </Button>
+        <button
+          type="button"
+          aria-label="tap to count rep"
+          onClick={() => setReps((r) => r + 1)}
+          className="flex h-14 flex-col items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 font-bold tabular-nums dark:border-zinc-800 dark:bg-zinc-950"
+        >
+          <span className="text-2xl">{reps}</span>
+          <span className="text-[10px] font-medium text-zinc-500">tap rep</span>
+        </button>
+        <Button
+          type="button"
+          className="h-11 min-h-0 px-0 text-xl"
+          onClick={() => setReps((r) => r + 1)}
+        >
+          +
+        </Button>
+      </div>
       <Input
         type="number"
         step="0.5"
@@ -358,17 +531,17 @@ function SetRow({
         max="10"
         aria-label="rpe"
         placeholder="RPE"
-        className="h-10 min-h-0 w-16"
+        className="h-10 min-h-0"
         value={rpe}
         onChange={(e) => setRpe(e.target.value)}
       />
       <Button
-        className="h-10 min-h-0 w-12 px-0"
+        className="h-10 min-h-0 px-0"
         variant={done ? "secondary" : "primary"}
         disabled={log.isPending}
         onClick={() => log.mutate()}
       >
-        {done ? "✓" : "✓"}
+        {done ? "✓" : "Log"}
       </Button>
     </div>
   );
