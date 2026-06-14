@@ -38,7 +38,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "3000:3000" # the ONLY exposed port
+      - "3006:3000" # the ONLY exposed port (host 3000 is taken on this box → 3006)
     restart: unless-stopped
 
 volumes:
