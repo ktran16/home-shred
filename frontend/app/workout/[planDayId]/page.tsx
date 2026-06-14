@@ -9,6 +9,7 @@ import { ConditioningTimer, RestTimer } from "@/components/rest-timer";
 import { Badge, Button, Card, Input } from "@/components/ui";
 import { api, type PlanDayOut, type PlanExerciseOut, type SuggestedTargetOut } from "@/lib/api";
 import { exerciseInstructions, movementLabel, primaryMuscleText } from "@/lib/exercise-cues";
+import { exerciseVoiceCue, restCompleteCue, restStartedCue } from "@/lib/voice-cues";
 
 export default function WorkoutPage() {
   const params = useParams<{ planDayId: string }>();
@@ -35,6 +36,7 @@ export default function WorkoutPage() {
 
 function Runner({ day }: { day: PlanDayOut }) {
   const router = useRouter();
+  const voice = useVoiceCoach();
   const createdRef = useRef(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [targets, setTargets] = useState<Record<number, SuggestedTargetOut>>({});
@@ -73,8 +75,10 @@ function Runner({ day }: { day: PlanDayOut }) {
     onSuccess: () => router.push("/progress"),
   });
 
-  const onSetLogged = (restSeconds: number) =>
+  const onSetLogged = (restSeconds: number) => {
     setRest((r) => ({ key: (r?.key ?? 0) + 1, seconds: restSeconds }));
+    voice.speak(restStartedCue(restSeconds));
+  };
 
   if (create.isPending || sessionId == null) {
     return <p className="text-sm text-zinc-500">Starting session…</p>;
@@ -83,10 +87,15 @@ function Runner({ day }: { day: PlanDayOut }) {
   return (
     <div className="flex flex-col gap-4 pb-28">
       <div>
-        <h1 className="text-2xl font-bold">Day {day.day_index} workout</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Follow the cue, log each set, then use the rest timer.
-        </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Day {day.day_index} workout</h1>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Follow the cue, log each set, then use the rest timer.
+            </p>
+          </div>
+          <VoiceCoachControls voice={voice} />
+        </div>
       </div>
 
       {day.exercises.map((pe) => (
@@ -96,6 +105,8 @@ function Runner({ day }: { day: PlanDayOut }) {
           target={targets[pe.exercise_id]}
           sessionId={sessionId}
           onSetLogged={onSetLogged}
+          speak={voice.speak}
+          voiceEnabled={voice.enabled}
         />
       ))}
 
@@ -104,8 +115,69 @@ function Runner({ day }: { day: PlanDayOut }) {
       </Button>
 
       {rest && (
-        <RestTimer key={rest.key} seconds={rest.seconds} onDismiss={() => setRest(null)} />
+        <RestTimer
+          key={rest.key}
+          seconds={rest.seconds}
+          onDismiss={() => setRest(null)}
+          onComplete={() => voice.speak(restCompleteCue())}
+        />
       )}
+    </div>
+  );
+}
+
+function useVoiceCoach() {
+  const [enabled, setEnabled] = useState(false);
+  const [supported] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window &&
+      "SpeechSynthesisUtterance" in window,
+  );
+
+  useEffect(() => {
+    return () => window.speechSynthesis?.cancel();
+  }, []);
+
+  const speak = (text: string, force = false) => {
+    if ((!enabled && !force) || !supported) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stop = () => window.speechSynthesis?.cancel();
+
+  return { enabled, setEnabled, supported, speak, stop };
+}
+
+function VoiceCoachControls({ voice }: { voice: ReturnType<typeof useVoiceCoach> }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-900">
+      <Button
+        className="h-9 min-h-0 px-3 text-sm"
+        variant={voice.enabled ? "primary" : "secondary"}
+        disabled={!voice.supported}
+        onClick={() => {
+          const next = !voice.enabled;
+          voice.setEnabled(next);
+          if (!next) voice.stop();
+          if (next) setTimeout(() => voice.speak("Voice coach enabled.", true), 0);
+        }}
+      >
+        {voice.enabled ? "Voice on" : "Voice off"}
+      </Button>
+      <Button
+        className="h-9 min-h-0 px-3 text-sm"
+        variant="ghost"
+        disabled={!voice.supported}
+        onClick={() => voice.speak("Voice coach ready.", true)}
+      >
+        Test
+      </Button>
+      {!voice.supported && <span className="text-xs text-zinc-500">Not supported</span>}
     </div>
   );
 }
@@ -115,11 +187,15 @@ function ExerciseBlock({
   target,
   sessionId,
   onSetLogged,
+  speak,
+  voiceEnabled,
 }: {
   pe: PlanExerciseOut;
   target?: SuggestedTargetOut;
   sessionId: number;
   onSetLogged: (rest: number) => void;
+  speak: (text: string, force?: boolean) => void;
+  voiceEnabled: boolean;
 }) {
   const sets = target?.sets ?? pe.sets;
   const repsDefault = target?.reps_min ?? pe.target_reps_min;
@@ -136,6 +212,13 @@ function ExerciseBlock({
               <span className="font-semibold">{pe.exercise.name}</span>
               <Badge>conditioning</Badge>
               <Badge>{movementLabel(pe.exercise.pattern)}</Badge>
+              <Button
+                variant="secondary"
+                className="h-8 min-h-0 px-2 text-xs"
+                onClick={() => speak(exerciseVoiceCue(pe, sets), true)}
+              >
+                Play cues
+              </Button>
             </div>
             <p className="text-sm text-zinc-500">{primaryMuscleText(pe.exercise)}</p>
             <InstructionList instructions={instructions} />
@@ -155,6 +238,14 @@ function ExerciseBlock({
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold">{pe.exercise.name}</span>
               <Badge>{movementLabel(pe.exercise.pattern)}</Badge>
+              {voiceEnabled && <Badge>voice ready</Badge>}
+              <Button
+                variant="secondary"
+                className="h-8 min-h-0 px-2 text-xs"
+                onClick={() => speak(exerciseVoiceCue(pe, sets), true)}
+              >
+                Play cues
+              </Button>
             </div>
             <div className="mt-1 text-xs text-zinc-500">
               {pe.target_reps_min}-{pe.target_reps_max} reps · {pe.rest_seconds}s rest ·{" "}

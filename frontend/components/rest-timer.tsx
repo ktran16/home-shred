@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRef } from "react";
 
 import { Button } from "@/components/ui";
 import { CYCLE, intervalState, isBoundary } from "@/lib/timer";
@@ -30,8 +31,17 @@ function beep() {
  * Sticky bottom rest countdown. Remount (via a changing `key`) to (re)start it —
  * state initialises from `seconds`, so no syncing effect is needed.
  */
-export function RestTimer({ seconds, onDismiss }: { seconds: number; onDismiss: () => void }) {
+export function RestTimer({
+  seconds,
+  onDismiss,
+  onComplete,
+}: {
+  seconds: number;
+  onDismiss: () => void;
+  onComplete?: () => void;
+}) {
   const [remaining, setRemaining] = useState(seconds);
+  const completedRef = useRef(false);
 
   useEffect(() => {
     if (remaining <= 0) return;
@@ -40,8 +50,12 @@ export function RestTimer({ seconds, onDismiss }: { seconds: number; onDismiss: 
   }, [remaining]);
 
   useEffect(() => {
-    if (remaining <= 0) beep(); // side-effect only; fires once when it hits zero
-  }, [remaining]);
+    if (remaining <= 0 && !completedRef.current) {
+      completedRef.current = true;
+      beep(); // side-effect only; fires once when it hits zero
+      onComplete?.();
+    }
+  }, [onComplete, remaining]);
 
   return (
     <div className="fixed inset-x-0 bottom-14 z-20 mx-auto w-full max-w-md px-4">
