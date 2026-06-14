@@ -409,6 +409,9 @@ GET   /api/health                         → {status:"ok"}
 
 GET   /api/exercises                       ?equipment&muscle&category&pattern  → list[ExerciseOut]
 GET   /api/exercises/{id}                  → ExerciseOut
+GET   /api/exercises/{id}/history          ?sessions  → ExerciseHistoryOut   # recent completed sessions for this exercise (§16 follow-up)
+PUT   /api/exercises/{id}/preference  ExercisePreferenceIn → ExercisePreferenceOut  # favorite/avoid
+DELETE/api/exercises/{id}/preference        → 204
 
 GET   /api/profile                         → ProfileOut
 PUT   /api/profile          ProfileIn      → ProfileOut       # upserts row id=1; also recomputes nutrition targets (§8)
@@ -425,6 +428,7 @@ PATCH /api/sessions/{id}/complete           → SessionOut
 GET   /api/sessions          ?from&to        → list[SessionOut]
 
 GET   /api/progress/volume   ?from&to        → list[VolumePoint]   # {week,muscle,volume}
+GET   /api/progress/strength                 → list[ExerciseStrengthOut]  # per-exercise PRs + e1RM trend (§18)
 
 POST  /api/body-metrics      BodyMetricIn    → BodyMetricOut
 GET   /api/body-metrics      ?from&to        → list[BodyMetricOut]
@@ -774,3 +778,48 @@ is the higher-quality option. It is **opt-in only**, sends the minimum necessary
 and still routes every proposed change through the rule engine. Keeping the assistant
 behind one `assistant.py` service interface means local vs cloud is a config switch, not
 a rewrite.
+
+---
+
+## 18. Analytics — Personal Records & Strength Trend (`services/strength.py`)
+
+Turns the existing `set_logs` into the "am I getting stronger?" view the app otherwise
+lacks. Pure read/aggregation over completed sessions — **no new tables, no rule-engine
+change**.
+
+### 18.1 Estimated 1RM
+`e1RM = weight_kg × (1 + reps / 30)` (Epley), rounded to 0.1 kg. Bodyweight sets
+(`weight_kg` null) have no e1RM — their strength signal is **top-set reps** instead. The
+same formula is used on the FE history recap (`lib/exercise-history.ts`) — keep them in
+sync.
+
+### 18.2 What is computed (per exercise, completed sessions only)
+- **PRs**: `best_e1rm` (max session e1RM), `best_weight` (heaviest single set),
+  `best_reps` (most reps in a single set — the bodyweight strength signal).
+- **Trend series**: one point per session, chronological:
+  `{date, e1rm | null, top_weight | null, top_reps}` where `e1rm`/`top_weight` are the
+  best of that session. The FE plots `e1rm` for weighted exercises, `top_reps` for
+  bodyweight ones.
+- **`latest_is_pr`**: the most recent session set a new all-time best (by e1RM for
+  weighted exercises, by reps for bodyweight). Drives a 🏆 badge on the progress page.
+
+Exercises with no completed sets are omitted; the list is ordered by most-recently-trained.
+
+### 18.3 Endpoint
+`GET /api/progress/strength → list[ExerciseStrengthOut]`
+(`ExerciseStrengthOut{ exercise_id, exercise_name, pattern, weighted, best_e1rm,
+best_weight, best_reps, latest_is_pr, points: list[StrengthPointOut] }`).
+
+### 18.4 Boundary (deliberate)
+PR celebration lives on **`/progress`**, computed server-side over full history. It is
+**not** wired into the in-runner session summary: the runner only fetches the last few
+sessions per exercise (§16 follow-up), so it cannot reliably detect an all-time PR
+without a second full-history fetch. Revisit if a dedicated "session PRs" endpoint is
+added.
+
+### 18.5 Tests (mandatory)
+- `epley_1rm` formula + bodyweight (null) → None.
+- `exercise_strength`: PRs correct; trend chronological; `latest_is_pr` true only when the
+  last session is a new best (weighted by e1RM, bodyweight by reps); incomplete sessions
+  excluded; empty → `[]`.
+- FE `lib/strength.ts`: chart-series selection (e1RM vs reps) + PR-label formatting.

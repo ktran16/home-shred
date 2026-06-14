@@ -108,6 +108,7 @@ function Runner({ day }: { day: PlanDayOut }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["exercise-history"] });
+      qc.invalidateQueries({ queryKey: ["strength"] });
       router.push("/progress");
     },
   });

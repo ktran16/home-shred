@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.enums import MovementPattern
+
 
 class BodyMetricIn(BaseModel):
     date: date_type | None = None
@@ -25,3 +27,26 @@ class VolumePoint(BaseModel):
     week: str
     muscle: str
     volume: float
+
+
+class StrengthPointOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    date: date_type
+    e1rm: float | None
+    top_weight: float | None
+    top_reps: int
+
+
+class ExerciseStrengthOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    exercise_id: int
+    exercise_name: str
+    pattern: MovementPattern | None
+    weighted: bool
+    best_e1rm: float | None
+    best_weight: float | None
+    best_reps: int
+    latest_is_pr: bool
+    points: list[StrengthPointOut]

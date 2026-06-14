@@ -23,3 +23,5 @@ export type BodyMetricOut = components["schemas"]["BodyMetricOut"];
 export type NutritionTargetOut = components["schemas"]["NutritionTargetOut"];
 export type ExerciseHistoryOut = components["schemas"]["ExerciseHistoryOut"];
 export type HistorySessionOut = components["schemas"]["HistorySessionOut"];
+export type ExerciseStrengthOut = components["schemas"]["ExerciseStrengthOut"];
+export type StrengthPointOut = components["schemas"]["StrengthPointOut"];

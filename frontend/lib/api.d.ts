@@ -332,6 +332,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/progress/strength": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Strength */
+        get: operations["strength_api_progress_strength_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/body-metrics": {
         parameters: {
             query?: never;
@@ -569,6 +586,26 @@ export interface components {
          * @enum {string}
          */
         ExercisePreferenceStatus: "favorite" | "avoid";
+        /** ExerciseStrengthOut */
+        ExerciseStrengthOut: {
+            /** Exercise Id */
+            exercise_id: number;
+            /** Exercise Name */
+            exercise_name: string;
+            pattern: components["schemas"]["MovementPattern"] | null;
+            /** Weighted */
+            weighted: boolean;
+            /** Best E1Rm */
+            best_e1rm: number | null;
+            /** Best Weight */
+            best_weight: number | null;
+            /** Best Reps */
+            best_reps: number;
+            /** Latest Is Pr */
+            latest_is_pr: boolean;
+            /** Points */
+            points: components["schemas"]["StrengthPointOut"][];
+        };
         /**
          * Focus
          * @enum {string}
@@ -841,6 +878,20 @@ export interface components {
          * @enum {string}
          */
         Sex: "male" | "female";
+        /** StrengthPointOut */
+        StrengthPointOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** E1Rm */
+            e1rm: number | null;
+            /** Top Weight */
+            top_weight: number | null;
+            /** Top Reps */
+            top_reps: number;
+        };
         /** SuggestedTargetOut */
         SuggestedTargetOut: {
             /** Exercise Id */
@@ -1617,6 +1668,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    strength_api_progress_strength_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExerciseStrengthOut"][];
                 };
             };
         };

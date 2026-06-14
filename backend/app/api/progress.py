@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.schemas.metrics import VolumePoint
+from app.schemas.metrics import ExerciseStrengthOut, VolumePoint
+from app.services import strength as strength_svc
 from app.services import volume as svc
 
 router = APIRouter(prefix="/progress", tags=["progress"])
@@ -18,3 +19,9 @@ async def volume(
 ) -> list[VolumePoint]:
     points = await svc.weekly_volume(db, date_from=date_from, date_to=date_to)
     return [VolumePoint(week=p.week, muscle=p.muscle, volume=p.volume) for p in points]
+
+
+@router.get("/strength", response_model=list[ExerciseStrengthOut])
+async def strength(db: AsyncSession = Depends(get_db)) -> list[ExerciseStrengthOut]:
+    rows = await strength_svc.exercise_strength(db)
+    return [ExerciseStrengthOut.model_validate(r) for r in rows]

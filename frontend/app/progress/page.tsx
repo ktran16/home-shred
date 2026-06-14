@@ -15,9 +15,10 @@ import {
   YAxis,
 } from "recharts";
 
-import { Button, Card, Input, Label } from "@/components/ui";
-import { api, type SessionOut } from "@/lib/api";
+import { Badge, Button, Card, Input, Label } from "@/components/ui";
+import { api, type ExerciseStrengthOut, type SessionOut } from "@/lib/api";
 import { pivotVolume } from "@/lib/charts";
+import { prHeadline, strengthSeries, strengthUnitLabel } from "@/lib/strength";
 import { buildMonthCalendar, buildWorkoutStats, type CalendarDay } from "@/lib/workout-stats";
 
 const COLORS = [
@@ -37,6 +38,10 @@ export default function ProgressPage() {
   const sessions = useQuery({
     queryKey: ["sessions"],
     queryFn: async () => (await api.GET("/api/sessions")).data ?? [],
+  });
+  const strength = useQuery({
+    queryKey: ["strength"],
+    queryFn: async () => (await api.GET("/api/progress/strength")).data ?? [],
   });
 
   const { rows, muscles } = pivotVolume(volume.data ?? []);
@@ -89,6 +94,12 @@ export default function ProgressPage() {
         )}
       </Card>
 
+      <StrengthSection
+        data={strength.data ?? []}
+        isLoading={strength.isLoading}
+        isError={strength.isError}
+      />
+
       <Card className="flex flex-col gap-2">
         <h2 className="font-semibold">Bodyweight</h2>
         {metrics.isLoading ? (
@@ -112,6 +123,99 @@ export default function ProgressPage() {
 
       <AddMetric />
     </div>
+  );
+}
+
+function StrengthSection({
+  data,
+  isLoading,
+  isError,
+}: {
+  data: ExerciseStrengthOut[];
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const selected = data.find((e) => e.exercise_id === selectedId) ?? data[0] ?? null;
+  const series = selected ? strengthSeries(selected) : [];
+
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-semibold">Personal records & strength</h2>
+        {data.length > 0 && (
+          <select
+            value={selected?.exercise_id ?? ""}
+            onChange={(e) => setSelectedId(Number(e.target.value))}
+            className="h-9 rounded-lg border border-zinc-300 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            aria-label="Select exercise for strength trend"
+          >
+            {data.map((exercise) => (
+              <option key={exercise.exercise_id} value={exercise.exercise_id}>
+                {exercise.exercise_name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-zinc-500">Loading strength...</p>
+      ) : isError ? (
+        <p className="text-sm text-red-600">Could not load strength.</p>
+      ) : data.length === 0 ? (
+        <p className="text-sm text-zinc-500">
+          Log weighted or bodyweight sets to track PRs and strength.
+        </p>
+      ) : (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {data.slice(0, 6).map((exercise) => (
+              <div
+                key={exercise.exercise_id}
+                className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-semibold">{exercise.exercise_name}</span>
+                  {exercise.latest_is_pr && (
+                    <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                      🏆 PR
+                    </Badge>
+                  )}
+                </div>
+                <div className="mt-1 text-lg font-bold tabular-nums">{prHeadline(exercise)}</div>
+                {exercise.weighted && exercise.best_weight != null && (
+                  <div className="text-xs text-zinc-500">top weight {exercise.best_weight} kg</div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {selected && (
+            <div>
+              <div className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                {selected.exercise_name} · {strengthUnitLabel(selected)}
+              </div>
+              {series.length < 2 ? (
+                <p className="text-sm text-zinc-500">
+                  Need at least two sessions to chart a trend.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={series} margin={{ left: -10, right: 8, top: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" fontSize={11} />
+                    <YAxis domain={["auto", "auto"]} fontSize={11} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </Card>
   );
 }
 

@@ -1087,6 +1087,31 @@
         }
       }
     },
+    "/api/progress/strength": {
+      "get": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Strength",
+        "operationId": "strength_api_progress_strength_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ExerciseStrengthOut"
+                  },
+                  "type": "array",
+                  "title": "Response Strength Api Progress Strength Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/body-metrics": {
       "post": {
         "tags": [
@@ -1733,6 +1758,82 @@
           "avoid"
         ],
         "title": "ExercisePreferenceStatus"
+      },
+      "ExerciseStrengthOut": {
+        "properties": {
+          "exercise_id": {
+            "type": "integer",
+            "title": "Exercise Id"
+          },
+          "exercise_name": {
+            "type": "string",
+            "title": "Exercise Name"
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MovementPattern"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weighted": {
+            "type": "boolean",
+            "title": "Weighted"
+          },
+          "best_e1rm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best E1Rm"
+          },
+          "best_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Weight"
+          },
+          "best_reps": {
+            "type": "integer",
+            "title": "Best Reps"
+          },
+          "latest_is_pr": {
+            "type": "boolean",
+            "title": "Latest Is Pr"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/StrengthPointOut"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exercise_id",
+          "exercise_name",
+          "pattern",
+          "weighted",
+          "best_e1rm",
+          "best_weight",
+          "best_reps",
+          "latest_is_pr",
+          "points"
+        ],
+        "title": "ExerciseStrengthOut"
       },
       "Focus": {
         "type": "string",
@@ -2510,6 +2611,49 @@
           "female"
         ],
         "title": "Sex"
+      },
+      "StrengthPointOut": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "e1rm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "E1Rm"
+          },
+          "top_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top Weight"
+          },
+          "top_reps": {
+            "type": "integer",
+            "title": "Top Reps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "e1rm",
+          "top_weight",
+          "top_reps"
+        ],
+        "title": "StrengthPointOut"
       },
       "SuggestedTargetOut": {
         "properties": {
