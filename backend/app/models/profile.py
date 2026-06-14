@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, Integer, Numeric, Text, func
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base, enum_col
@@ -21,6 +22,9 @@ class UserProfile(Base):
     weight_kg: Mapped[float] = mapped_column(Numeric(5, 1), nullable=False)
     activity_level: Mapped[ActivityLevel] = mapped_column(enum_col(ActivityLevel), nullable=False)
     experience_level: Mapped[Level] = mapped_column(enum_col(Level), nullable=False)
+    limitations: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, default=list, server_default="{}"
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

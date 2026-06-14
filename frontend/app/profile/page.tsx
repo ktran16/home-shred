@@ -28,6 +28,13 @@ const SEX_OPTIONS = [
   { value: "male", label: "Male" },
   { value: "female", label: "Female" },
 ] as const;
+const LIMITATIONS = [
+  { value: "shoulder", label: "Shoulder", detail: "Skip overhead pressing" },
+  { value: "knee", label: "Knee", detail: "Skip squat slots" },
+  { value: "lower_back", label: "Low back", detail: "Skip hinge slots" },
+  { value: "wrist", label: "Wrist", detail: "Skip push-up slots" },
+  { value: "pull_up", label: "Pull-up bar", detail: "Skip vertical pulls" },
+] as const;
 
 const EMPTY: ProfileIn = {
   name: "Default",
@@ -37,6 +44,7 @@ const EMPTY: ProfileIn = {
   weight_kg: 80,
   activity_level: "moderate",
   experience_level: "intermediate",
+  limitations: [],
 };
 
 export default function ProfilePage() {
@@ -356,6 +364,31 @@ function ProfileForm({ initial }: { initial: ProfileIn }) {
                 </SegmentedField>
               </div>
             </FormSection>
+
+            <FormSection title="Limitations">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {LIMITATIONS.map((limitation) => {
+                  const selected = (form.limitations ?? []).includes(limitation.value);
+                  return (
+                    <LimitationButton
+                      key={limitation.value}
+                      label={limitation.label}
+                      detail={limitation.detail}
+                      selected={selected}
+                      onClick={() => {
+                        const current = form.limitations ?? [];
+                        set(
+                          "limitations",
+                          selected
+                            ? current.filter((value) => value !== limitation.value)
+                            : [...current, limitation.value],
+                        );
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </FormSection>
           </div>
 
           <div className="flex flex-col gap-2 border-t border-zinc-100 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950/60 sm:flex-row sm:px-5">
@@ -400,6 +433,7 @@ function profileToInput(profile: ProfileOut): ProfileIn {
     weight_kg: Number(profile.weight_kg),
     activity_level: profile.activity_level,
     experience_level: profile.experience_level,
+    limitations: profile.limitations ?? [],
   };
 }
 
@@ -487,6 +521,37 @@ function ActivityButton({
     >
       <span className="block text-sm font-semibold leading-tight">{label}</span>
       <span className={cn("mt-1 block text-[11px]", selected ? "text-zinc-300 dark:text-zinc-600" : "text-zinc-500")}>
+        {detail}
+      </span>
+    </button>
+  );
+}
+
+function LimitationButton({
+  label,
+  detail,
+  selected,
+  onClick,
+}: {
+  label: string;
+  detail: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={cn(
+        "min-h-[72px] rounded-lg border p-3 text-left transition-colors",
+        selected
+          ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100"
+          : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-600",
+      )}
+    >
+      <span className="block text-sm font-semibold leading-tight">{label}</span>
+      <span className={cn("mt-1 block text-[11px]", selected ? "text-amber-700 dark:text-amber-300" : "text-zinc-500")}>
         {detail}
       </span>
     </button>

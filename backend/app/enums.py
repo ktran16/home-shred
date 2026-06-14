@@ -53,6 +53,11 @@ class ActivityLevel(StrEnum):
     VERY_ACTIVE = "very_active"  # ×1.9
 
 
+class ExercisePreferenceStatus(StrEnum):
+    FAVORITE = "favorite"
+    AVOID = "avoid"
+
+
 # rationale: TDEE multipliers per activity level (SPEC §4, §8).
 ACTIVITY_FACTORS: dict[ActivityLevel, float] = {
     ActivityLevel.SEDENTARY: 1.2,

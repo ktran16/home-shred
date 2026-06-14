@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -10,11 +10,18 @@ import { Badge, Button, Card, Input } from "@/components/ui";
 import {
   api,
   type ExerciseOut,
+  type HistorySessionOut,
   type PlanDayOut,
   type PlanExerciseOut,
   type SuggestedTargetOut,
 } from "@/lib/api";
 import { exerciseInstructions, movementLabel, primaryMuscleText } from "@/lib/exercise-cues";
+import {
+  estimatedOneRm,
+  formatHistoryDate,
+  formatLastTime,
+  topSet,
+} from "@/lib/exercise-history";
 import {
   buildSessionSummary,
   formatSessionNotes,
@@ -54,6 +61,7 @@ export default function WorkoutPage() {
 
 function Runner({ day }: { day: PlanDayOut }) {
   const router = useRouter();
+  const qc = useQueryClient();
   const voice = useVoiceCoach();
   const createdRef = useRef(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -98,7 +106,10 @@ function Runner({ day }: { day: PlanDayOut }) {
         body: { notes: formatSessionNotes({ notes, tags, summary }) },
       });
     },
-    onSuccess: () => router.push("/progress"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["exercise-history"] });
+      router.push("/progress");
+    },
   });
 
   const onSetLogged = (restSeconds: number, log: LoggedSetSummary) => {
@@ -381,7 +392,21 @@ function ExerciseBlock({
   const effectivePe: PlanExerciseOut = { ...pe, exercise_id: exercise.id, exercise };
   const sets = Math.max(1, (target?.sets ?? pe.sets) - setReduction);
   const repsDefault = target?.reps_min ?? pe.target_reps_min;
-  const weightDefault = target?.suggested_weight_kg ?? null;
+
+  // Per-exercise history — re-fetched when substituted (keyed on the live exercise id).
+  const history = useQuery({
+    queryKey: ["exercise-history", exercise.id],
+    queryFn: async () => {
+      const { data } = await api.GET("/api/exercises/{exercise_id}/history", {
+        params: { path: { exercise_id: exercise.id }, query: { sessions: 3 } },
+      });
+      return data ?? null;
+    },
+  });
+  const lastSession = history.data?.sessions[0] ?? null;
+  const lastTopWeight = lastSession ? (topSet(lastSession)?.weightKg ?? null) : null;
+  // Fall back to last session's top-set weight when progression gives no suggestion.
+  const weightDefault = target?.suggested_weight_kg ?? lastTopWeight;
   const instructions = exerciseInstructions(exercise);
   const restSeconds = pe.rest_seconds + restBonus;
 
@@ -406,6 +431,7 @@ function ExerciseBlock({
             </div>
             <p className="text-sm text-zinc-500">{primaryMuscleText(exercise)}</p>
             <InstructionList instructions={instructions} />
+            <HistoryPanel data={history.data} isLoading={history.isLoading} />
             <SubstitutionPanel current={exercise} onSelect={setExercise} />
           </div>
         </div>
@@ -439,6 +465,7 @@ function ExerciseBlock({
             </div>
           </div>
           <InstructionList instructions={instructions} />
+          <HistoryPanel data={history.data} isLoading={history.isLoading} />
           <SubstitutionPanel current={exercise} onSelect={setExercise} />
         </div>
       </div>
@@ -458,6 +485,77 @@ function ExerciseBlock({
         ))}
       </div>
     </Card>
+  );
+}
+
+function HistoryPanel({
+  data,
+  isLoading,
+}: {
+  data: { sessions: HistorySessionOut[] } | null | undefined;
+  isLoading: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const sessions = data?.sessions ?? [];
+  const last = sessions[0];
+
+  return (
+    <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Last time
+          </div>
+          <div className="truncate text-sm text-zinc-600 dark:text-zinc-400">
+            {isLoading
+              ? "Loading history…"
+              : last
+                ? formatLastTime(last)
+                : "No history yet — first time logged here."}
+          </div>
+        </div>
+        {sessions.length > 0 && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-0 px-3 text-sm"
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? "Hide" : "History"}
+          </Button>
+        )}
+      </div>
+      {open && (
+        <ol className="mt-3 grid gap-2">
+          {sessions.map((session) => {
+            const top = topSet(session);
+            const e1rm = top ? estimatedOneRm(top.reps, top.weightKg) : null;
+            return (
+              <li
+                key={session.session_id}
+                className="rounded-lg border border-zinc-200 bg-white p-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold">{formatHistoryDate(session.date)}</span>
+                  {e1rm != null && (
+                    <span className="text-xs text-zinc-500">est. 1RM {e1rm} kg</span>
+                  )}
+                </div>
+                <div className="mt-1 text-zinc-600 dark:text-zinc-400">
+                  {session.sets
+                    .map((set) =>
+                      set.weight_kg != null && Number(set.weight_kg) > 0
+                        ? `${set.reps}×${Number(set.weight_kg)}kg`
+                        : `${set.reps} reps`,
+                    )
+                    .join(" · ")}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </div>
   );
 }
 
@@ -568,6 +666,14 @@ function SetRow({
   const [weight, setWeight] = useState<string>(defaultWeight != null ? String(defaultWeight) : "");
   const [rpe, setRpe] = useState<string>("");
   const [done, setDone] = useState(false);
+  // History-based prefill can arrive after mount; apply it once while still untouched.
+  const prefilledRef = useRef(false);
+  useEffect(() => {
+    if (!prefilledRef.current && defaultWeight != null && weight === "") {
+      prefilledRef.current = true;
+      setWeight(String(defaultWeight));
+    }
+  }, [defaultWeight, weight]);
 
   const log = useMutation({
     mutationFn: async () => {

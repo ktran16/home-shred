@@ -4,8 +4,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.enums import Equipment, Goal
-from app.models import Exercise, Plan, PlanDay, PlanExercise
+from app.enums import Equipment, ExercisePreferenceStatus, Goal, MovementPattern
+from app.models import Exercise, ExercisePreference, Plan, PlanDay, PlanExercise
 from app.services.plan_generator import (
     CoveragePoint,
     DayFatigue,
@@ -32,6 +32,14 @@ _PLAN_LOADERS = (
     selectinload(Plan.days).selectinload(PlanDay.exercises).selectinload(PlanExercise.exercise),
 )
 
+_LIMITATION_BLOCKED_PATTERNS: dict[str, set[MovementPattern]] = {
+    "shoulder": {MovementPattern.VERTICAL_PUSH},
+    "knee": {MovementPattern.SQUAT},
+    "lower_back": {MovementPattern.HINGE},
+    "wrist": {MovementPattern.HORIZONTAL_PUSH},
+    "pull_up": {MovementPattern.VERTICAL_PULL},
+}
+
 
 async def _load_plan(db: AsyncSession, plan_id: int) -> Plan | None:
     stmt = select(Plan).where(Plan.id == plan_id).options(*_PLAN_LOADERS)
@@ -45,7 +53,7 @@ async def create_plan(
     if profile is None:
         raise NoProfileError
 
-    exercises = list((await db.scalars(select(Exercise))).all())
+    exercises = await _candidate_exercises(db, profile.limitations)
     draft = generate_plan(
         goal=goal,
         days_per_week=days_per_week,
@@ -88,6 +96,63 @@ async def create_plan(
     loaded = await _load_plan(db, plan.id)
     assert loaded is not None
     return loaded
+
+
+async def _candidate_exercises(db: AsyncSession, limitations: list[str]) -> list[Exercise]:
+    exercises = list((await db.scalars(select(Exercise))).all())
+    preferences = {
+        pref.exercise_id: pref.status
+        for pref in (await db.scalars(select(ExercisePreference))).all()
+    }
+    candidates = [
+        exercise
+        for exercise in exercises
+        if preferences.get(exercise.id) != ExercisePreferenceStatus.AVOID
+    ]
+    blocked_patterns = _blocked_patterns(limitations)
+    limited = _apply_limitations(candidates, blocked_patterns)
+    # Avoid preferences are hard excludes. Limitation filters are a planning aid, so
+    # fall back to the avoid-filtered pool if they would leave too little variety.
+    if _has_pattern_coverage(limited, blocked_patterns):
+        candidates = limited
+
+    favorites = [
+        exercise
+        for exercise in candidates
+        if preferences.get(exercise.id) == ExercisePreferenceStatus.FAVORITE
+    ]
+    return candidates + favorites + favorites
+
+
+def _blocked_patterns(limitations: list[str]) -> set[MovementPattern]:
+    return set().union(
+        *(_LIMITATION_BLOCKED_PATTERNS.get(limitation, set()) for limitation in limitations)
+    )
+
+
+def _apply_limitations(
+    exercises: list[Exercise], blocked_patterns: set[MovementPattern]
+) -> list[Exercise]:
+    if not blocked_patterns:
+        return exercises
+    return [exercise for exercise in exercises if exercise.pattern not in blocked_patterns]
+
+
+def _has_pattern_coverage(
+    exercises: list[Exercise], blocked_patterns: set[MovementPattern]
+) -> bool:
+    patterns = {exercise.pattern for exercise in exercises}
+    required = {
+        MovementPattern.HORIZONTAL_PUSH,
+        MovementPattern.VERTICAL_PUSH,
+        MovementPattern.HORIZONTAL_PULL,
+        MovementPattern.VERTICAL_PULL,
+        MovementPattern.SQUAT,
+        MovementPattern.HINGE,
+        MovementPattern.CORE,
+        MovementPattern.CONDITIONING,
+    }
+    return len(exercises) >= 20 and (required - blocked_patterns) <= patterns
 
 
 async def list_plans(db: AsyncSession) -> list[Plan]:

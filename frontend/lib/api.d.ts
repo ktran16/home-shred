@@ -55,6 +55,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/exercises/{exercise_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Exercise History */
+        get: operations["get_exercise_history_api_exercises__exercise_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/exercises/{exercise_id}/preference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Exercise Preference */
+        put: operations["put_exercise_preference_api_exercises__exercise_id__preference_put"];
+        post?: never;
+        /** Delete Exercise Preference */
+        delete: operations["delete_exercise_preference_api_exercises__exercise_id__preference_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/profile": {
         parameters: {
             query?: never;
@@ -484,6 +519,13 @@ export interface components {
          * @enum {string}
          */
         Equipment: "bodyweight" | "dumbbell" | "pull_up_bar";
+        /** ExerciseHistoryOut */
+        ExerciseHistoryOut: {
+            /** Exercise Id */
+            exercise_id: number;
+            /** Sessions */
+            sessions: components["schemas"]["HistorySessionOut"][];
+        };
         /** ExerciseOut */
         ExerciseOut: {
             /** Id */
@@ -505,7 +547,28 @@ export interface components {
             is_compound: boolean;
             /** Instructions */
             instructions: string[];
+            preference?: components["schemas"]["ExercisePreferenceStatus"] | null;
         };
+        /** ExercisePreferenceIn */
+        ExercisePreferenceIn: {
+            status: components["schemas"]["ExercisePreferenceStatus"];
+        };
+        /** ExercisePreferenceOut */
+        ExercisePreferenceOut: {
+            /** Exercise Id */
+            exercise_id: number;
+            status: components["schemas"]["ExercisePreferenceStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * ExercisePreferenceStatus
+         * @enum {string}
+         */
+        ExercisePreferenceStatus: "favorite" | "avoid";
         /**
          * Focus
          * @enum {string}
@@ -520,6 +583,29 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HistorySessionOut */
+        HistorySessionOut: {
+            /** Session Id */
+            session_id: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Sets */
+            sets: components["schemas"]["HistorySetOut"][];
+        };
+        /** HistorySetOut */
+        HistorySetOut: {
+            /** Set Number */
+            set_number: number;
+            /** Reps */
+            reps: number;
+            /** Weight Kg */
+            weight_kg: string | null;
+            /** Rpe */
+            rpe: string | null;
         };
         /**
          * Level
@@ -649,6 +735,8 @@ export interface components {
             weight_kg: number | string;
             activity_level: components["schemas"]["ActivityLevel"];
             experience_level: components["schemas"]["Level"];
+            /** Limitations */
+            limitations?: ("shoulder" | "knee" | "lower_back" | "wrist" | "pull_up")[];
         };
         /** ProfileOut */
         ProfileOut: {
@@ -667,6 +755,8 @@ export interface components {
             weight_kg: string;
             activity_level: components["schemas"]["ActivityLevel"];
             experience_level: components["schemas"]["Level"];
+            /** Limitations */
+            limitations: ("shoulder" | "knee" | "lower_back" | "wrist" | "pull_up")[];
             /**
              * Updated At
              * Format: date-time
@@ -881,6 +971,103 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ExerciseOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_exercise_history_api_exercises__exercise_id__history_get: {
+        parameters: {
+            query?: {
+                sessions?: number;
+            };
+            header?: never;
+            path: {
+                exercise_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExerciseHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_exercise_preference_api_exercises__exercise_id__preference_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exercise_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExercisePreferenceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExercisePreferenceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_exercise_preference_api_exercises__exercise_id__preference_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exercise_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
