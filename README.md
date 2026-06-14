@@ -33,7 +33,25 @@ cd backend  && uv run ruff check . && uv run pytest
 cd frontend && pnpm exec eslint . && pnpm build
 ```
 
+## Self-host (prod, LAN/Tailscale only)
+
+One compose file runs db + backend + frontend; only the frontend port (3000) is
+published — the backend stays internal and the browser only talks to the FE origin
+(no reverse proxy, no CORS). See SPEC §14.
+
+```bash
+cp .env.prod.example .env.prod          # set strong POSTGRES_PASSWORD + matching DATABASE_URL
+docker compose -f docker-compose.prod.yml up -d --build
+
+# first deploy only — seed the exercise catalogue (idempotent):
+docker compose -f docker-compose.prod.yml run --rm backend python -m app.seed.seed_exercises
+```
+
+The backend container applies Alembic migrations on start. Open
+`http://<host-ip>:3000` on the LAN, or `http://<tailscale-host>:3000` remotely.
+
 ## Layout
-- `backend/` — FastAPI app, SQLAlchemy models, Alembic migrations, services, seed.
-- `frontend/` — Next.js App Router UI with a generated, typed API client.
-- `docker-compose.yml` — dev database; prod compose comes in Phase 7.
+- `backend/` — FastAPI app, SQLAlchemy models, Alembic migrations, services, seed; `Dockerfile`.
+- `frontend/` — Next.js App Router UI with a generated, typed API client; `Dockerfile` (standalone).
+- `docker-compose.yml` — dev database (postgres + adminer).
+- `docker-compose.prod.yml` + `.env.prod.example` — self-host stack.
