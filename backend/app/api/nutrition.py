@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.schemas.nutrition import AdaptiveTDEEOut, NutritionTargetOut, SuggestedTargets
+from app.schemas.nutrition import (
+    AdaptiveTDEEOut,
+    FoodFactsOut,
+    NutritionTargetOut,
+    SuggestedTargets,
+)
+from app.services import food_lookup
 from app.services import nutrition as svc
 from app.services.nutrition import ADAPTIVE_MIN_DAYS_SPAN, ADAPTIVE_MIN_SAMPLES
 from app.services.profile import get_profile
@@ -56,6 +62,18 @@ async def adaptive(db: AsyncSession = Depends(get_db)) -> AdaptiveTDEEOut:
             fat_g=est.targets.fat_g,
         ),
     )
+
+
+@router.get("/barcode/{code}", response_model=FoodFactsOut)
+async def barcode(code: str) -> FoodFactsOut:
+    """Look up a barcode's macros from Open Food Facts (SPEC §17.5 B2b, opt-in/external)."""
+    try:
+        facts = await food_lookup.lookup_barcode(code)
+    except food_lookup.FoodNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="No product found for that barcode") from exc
+    except food_lookup.FoodLookupError as exc:
+        raise HTTPException(status_code=502, detail="Open Food Facts lookup failed") from exc
+    return FoodFactsOut.model_validate(facts)
 
 
 @router.post("/adaptive/apply", response_model=NutritionTargetOut)

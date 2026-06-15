@@ -50,3 +50,18 @@ class ExerciseStrengthOut(BaseModel):
     best_reps: int
     latest_is_pr: bool
     points: list[StrengthPointOut]
+
+
+class LoadPredictionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    exercise_id: int
+    exercise_name: str
+    weighted: bool
+    sessions: int
+    current: float | None
+    predicted_next: float | None
+    trend_per_session: float | None
+    avg_recent_rpe: float | None
+    readiness: str  # "progress" | "hold" | "insufficient"
+    confidence: float

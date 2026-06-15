@@ -25,3 +25,6 @@ export type ExerciseHistoryOut = components["schemas"]["ExerciseHistoryOut"];
 export type HistorySessionOut = components["schemas"]["HistorySessionOut"];
 export type ExerciseStrengthOut = components["schemas"]["ExerciseStrengthOut"];
 export type StrengthPointOut = components["schemas"]["StrengthPointOut"];
+export type LoadPredictionOut = components["schemas"]["LoadPredictionOut"];
+export type ExerciseSearchHitOut = components["schemas"]["ExerciseSearchHitOut"];
+export type FoodFactsOut = components["schemas"]["FoodFactsOut"];

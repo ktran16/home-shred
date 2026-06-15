@@ -131,6 +131,66 @@
         }
       }
     },
+    "/api/exercises/search": {
+      "get": {
+        "tags": [
+          "exercises"
+        ],
+        "summary": "Search",
+        "description": "Local semantic-ish exercise search (SPEC \u00a717.3 A3).",
+        "operationId": "search_api_exercises_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExerciseSearchHitOut"
+                  },
+                  "title": "Response Search Api Exercises Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/exercises/{exercise_id}": {
       "get": {
         "tags": [
@@ -1112,6 +1172,32 @@
         }
       }
     },
+    "/api/progress/prediction": {
+      "get": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Prediction",
+        "description": "Per-exercise next-session load / readiness forecast (SPEC \u00a717.3 A2).",
+        "operationId": "prediction_api_progress_prediction_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LoadPredictionOut"
+                  },
+                  "type": "array",
+                  "title": "Response Prediction Api Progress Prediction Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/body-metrics": {
       "post": {
         "tags": [
@@ -1279,6 +1365,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdaptiveTDEEOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nutrition/barcode/{code}": {
+      "get": {
+        "tags": [
+          "nutrition"
+        ],
+        "summary": "Barcode",
+        "description": "Look up a barcode's macros from Open Food Facts (SPEC \u00a717.5 B2b, opt-in/external).",
+        "operationId": "barcode_api_nutrition_barcode__code__get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoodFactsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1759,6 +1888,23 @@
         ],
         "title": "ExercisePreferenceStatus"
       },
+      "ExerciseSearchHitOut": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "exercise": {
+            "$ref": "#/components/schemas/ExerciseOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "exercise"
+        ],
+        "title": "ExerciseSearchHitOut"
+      },
       "ExerciseStrengthOut": {
         "properties": {
           "exercise_id": {
@@ -1847,6 +1993,104 @@
           "conditioning"
         ],
         "title": "Focus"
+      },
+      "FoodFactsOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "serving_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serving Size"
+          },
+          "kcal_per_100g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kcal Per 100G"
+          },
+          "protein_per_100g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protein Per 100G"
+          },
+          "carbs_per_100g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carbs Per 100G"
+          },
+          "fat_per_100g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fat Per 100G"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "brand",
+          "serving_size",
+          "kcal_per_100g",
+          "protein_per_100g",
+          "carbs_per_100g",
+          "fat_per_100g"
+        ],
+        "title": "FoodFactsOut",
+        "description": "Macros for a scanned barcode, per 100 g (SPEC \u00a717.5 B2b)."
       },
       "Goal": {
         "type": "string",
@@ -1947,6 +2191,92 @@
           "advanced"
         ],
         "title": "Level"
+      },
+      "LoadPredictionOut": {
+        "properties": {
+          "exercise_id": {
+            "type": "integer",
+            "title": "Exercise Id"
+          },
+          "exercise_name": {
+            "type": "string",
+            "title": "Exercise Name"
+          },
+          "weighted": {
+            "type": "boolean",
+            "title": "Weighted"
+          },
+          "sessions": {
+            "type": "integer",
+            "title": "Sessions"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "predicted_next": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicted Next"
+          },
+          "trend_per_session": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend Per Session"
+          },
+          "avg_recent_rpe": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Recent Rpe"
+          },
+          "readiness": {
+            "type": "string",
+            "title": "Readiness"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exercise_id",
+          "exercise_name",
+          "weighted",
+          "sessions",
+          "current",
+          "predicted_next",
+          "trend_per_session",
+          "avg_recent_rpe",
+          "readiness",
+          "confidence"
+        ],
+        "title": "LoadPredictionOut"
       },
       "MovementPattern": {
         "type": "string",

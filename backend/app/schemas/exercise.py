@@ -36,6 +36,11 @@ class ExerciseOut(BaseModel):
     preference: ExercisePreferenceStatus | None = None
 
 
+class ExerciseSearchHitOut(BaseModel):
+    score: float
+    exercise: ExerciseOut
+
+
 class HistorySetOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

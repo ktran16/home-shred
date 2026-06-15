@@ -96,9 +96,7 @@ async def exercise_strength(db: AsyncSession) -> list[ExerciseStrength]:
     for ex_id, sessions in grouped.items():
         aggs = list(sessions.values())  # already chronological
         points = [
-            StrengthPoint(
-                date=a.date, e1rm=a.e1rm, top_weight=a.top_weight, top_reps=a.top_reps
-            )
+            StrengthPoint(date=a.date, e1rm=a.e1rm, top_weight=a.top_weight, top_reps=a.top_reps)
             for a in aggs
         ]
         e1rms = [p.e1rm for p in points if p.e1rm is not None]
@@ -111,9 +109,7 @@ async def exercise_strength(db: AsyncSession) -> list[ExerciseStrength]:
         last = points[-1]
         if weighted:
             prior_best = max((p.e1rm for p in points[:-1] if p.e1rm is not None), default=None)
-            latest_is_pr = last.e1rm is not None and (
-                prior_best is None or last.e1rm > prior_best
-            )
+            latest_is_pr = last.e1rm is not None and (prior_best is None or last.e1rm > prior_best)
         else:
             prior_best_reps = max((p.top_reps for p in points[:-1]), default=0)
             latest_is_pr = len(points) > 0 and last.top_reps > prior_best_reps

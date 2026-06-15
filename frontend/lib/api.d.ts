@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/exercises/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search
+         * @description Local semantic-ish exercise search (SPEC §17.3 A3).
+         */
+        get: operations["search_api_exercises_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/exercises/{exercise_id}": {
         parameters: {
             query?: never;
@@ -349,6 +369,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/progress/prediction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prediction
+         * @description Per-exercise next-session load / readiness forecast (SPEC §17.3 A2).
+         */
+        get: operations["prediction_api_progress_prediction_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/body-metrics": {
         parameters: {
             query?: never;
@@ -413,6 +453,26 @@ export interface paths {
          * @description Adaptive TDEE preview from the bodyweight trend (SPEC §17.3 A1).
          */
         get: operations["adaptive_api_nutrition_adaptive_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nutrition/barcode/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Barcode
+         * @description Look up a barcode's macros from Open Food Facts (SPEC §17.5 B2b, opt-in/external).
+         */
+        get: operations["barcode_api_nutrition_barcode__code__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -586,6 +646,12 @@ export interface components {
          * @enum {string}
          */
         ExercisePreferenceStatus: "favorite" | "avoid";
+        /** ExerciseSearchHitOut */
+        ExerciseSearchHitOut: {
+            /** Score */
+            score: number;
+            exercise: components["schemas"]["ExerciseOut"];
+        };
         /** ExerciseStrengthOut */
         ExerciseStrengthOut: {
             /** Exercise Id */
@@ -611,6 +677,28 @@ export interface components {
          * @enum {string}
          */
         Focus: "full_body" | "upper" | "lower" | "push" | "pull" | "legs" | "conditioning";
+        /**
+         * FoodFactsOut
+         * @description Macros for a scanned barcode, per 100 g (SPEC §17.5 B2b).
+         */
+        FoodFactsOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string | null;
+            /** Brand */
+            brand: string | null;
+            /** Serving Size */
+            serving_size: string | null;
+            /** Kcal Per 100G */
+            kcal_per_100g: number | null;
+            /** Protein Per 100G */
+            protein_per_100g: number | null;
+            /** Carbs Per 100G */
+            carbs_per_100g: number | null;
+            /** Fat Per 100G */
+            fat_per_100g: number | null;
+        };
         /**
          * Goal
          * @enum {string}
@@ -649,6 +737,29 @@ export interface components {
          * @enum {string}
          */
         Level: "beginner" | "intermediate" | "advanced";
+        /** LoadPredictionOut */
+        LoadPredictionOut: {
+            /** Exercise Id */
+            exercise_id: number;
+            /** Exercise Name */
+            exercise_name: string;
+            /** Weighted */
+            weighted: boolean;
+            /** Sessions */
+            sessions: number;
+            /** Current */
+            current: number | null;
+            /** Predicted Next */
+            predicted_next: number | null;
+            /** Trend Per Session */
+            trend_per_session: number | null;
+            /** Avg Recent Rpe */
+            avg_recent_rpe: number | null;
+            /** Readiness */
+            readiness: string;
+            /** Confidence */
+            confidence: number;
+        };
         /**
          * MovementPattern
          * @description Used by the generator for balanced selection (SPEC §4).
@@ -990,6 +1101,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExerciseOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_api_exercises_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExerciseSearchHitOut"][];
                 };
             };
             /** @description Validation Error */
@@ -1692,6 +1835,26 @@ export interface operations {
             };
         };
     };
+    prediction_api_progress_prediction_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoadPredictionOut"][];
+                };
+            };
+        };
+    };
     list_body_metrics_api_body_metrics_get: {
         parameters: {
             query?: {
@@ -1813,6 +1976,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdaptiveTDEEOut"];
+                };
+            };
+        };
+    };
+    barcode_api_nutrition_barcode__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoodFactsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -22,6 +22,21 @@ class SuggestedTargets(BaseModel):
     fat_g: int
 
 
+class FoodFactsOut(BaseModel):
+    """Macros for a scanned barcode, per 100 g (SPEC §17.5 B2b)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    code: str
+    name: str | None
+    brand: str | None
+    serving_size: str | None
+    kcal_per_100g: float | None
+    protein_per_100g: float | None
+    carbs_per_100g: float | None
+    fat_per_100g: float | None
+
+
 class AdaptiveTDEEOut(BaseModel):
     """Adaptive TDEE preview (SPEC §17.3 A1). When `enough_data` is false the estimate
     fields are null and `reason` explains why."""

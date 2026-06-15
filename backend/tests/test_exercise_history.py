@@ -62,9 +62,7 @@ async def test_recent_history_newest_first_completed_only(db: AsyncSession, seed
     old = await _session_with_sets(
         db, exercise_id=ex_id, on_date=today - timedelta(days=7), sets=[(1, 10, 20.0, 8.0)]
     )
-    new = await _session_with_sets(
-        db, exercise_id=ex_id, on_date=today, sets=[(1, 12, 22.5, 7.0)]
-    )
+    new = await _session_with_sets(db, exercise_id=ex_id, on_date=today, sets=[(1, 12, 22.5, 7.0)])
     # incomplete session must be ignored
     await _session_with_sets(
         db, exercise_id=ex_id, on_date=today, sets=[(1, 5, 99.0, None)], completed=False

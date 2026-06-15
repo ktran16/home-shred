@@ -8,10 +8,12 @@ from app.schemas.exercise import (
     ExerciseOut,
     ExercisePreferenceIn,
     ExercisePreferenceOut,
+    ExerciseSearchHitOut,
     HistorySessionOut,
 )
 from app.services import exercise_history as hist_svc
 from app.services import exercise_preferences as pref_svc
+from app.services import exercise_search as search_svc
 from app.services import exercises as svc
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])
@@ -32,6 +34,20 @@ async def list_exercises(
     return [
         ExerciseOut.model_validate(row).model_copy(update={"preference": preferences.get(row.id)})
         for row in rows
+    ]
+
+
+@router.get("/search", response_model=list[ExerciseSearchHitOut])
+async def search(
+    q: str = Query(min_length=1),
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+) -> list[ExerciseSearchHitOut]:
+    """Local semantic-ish exercise search (SPEC §17.3 A3)."""
+    hits = await search_svc.search_exercises(db, q, limit=limit)
+    return [
+        ExerciseSearchHitOut(score=score, exercise=ExerciseOut.model_validate(exercise))
+        for exercise, score in hits
     ]
 
 
