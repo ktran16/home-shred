@@ -1,5 +1,7 @@
 import type { SessionOut } from "@/lib/api";
 
+export type SessionImpression = NonNullable<SessionOut["impression"]>;
+
 export type CalendarDay = {
   iso: string;
   day: number;
@@ -7,6 +9,7 @@ export type CalendarDay = {
   isToday: boolean;
   completed: number;
   started: number;
+  impression: SessionImpression | null;
 };
 
 export type WorkoutStats = {
@@ -86,18 +89,25 @@ export function buildMonthCalendar(
   const start = addDays(first, -first.getUTCDay());
   const todayIso = toIsoDate(startOfDay(today));
 
-  const byDate = new Map<string, { completed: number; started: number }>();
+  const byDate = new Map<
+    string,
+    { completed: number; started: number; impression: SessionImpression | null }
+  >();
   for (const session of sessions) {
-    const count = byDate.get(session.date) ?? { completed: 0, started: 0 };
+    const count = byDate.get(session.date) ?? { completed: 0, started: 0, impression: null };
     if (session.completed) count.completed += 1;
     else count.started += 1;
+    // first recorded impression for a completed day wins (days rarely have more than one).
+    if (session.completed && session.impression && count.impression == null) {
+      count.impression = session.impression;
+    }
     byDate.set(session.date, count);
   }
 
   return Array.from({ length: 42 }, (_, index) => {
     const date = addDays(start, index);
     const iso = toIsoDate(date);
-    const count = byDate.get(iso) ?? { completed: 0, started: 0 };
+    const count = byDate.get(iso) ?? { completed: 0, started: 0, impression: null };
     return {
       iso,
       day: date.getUTCDate(),
@@ -105,6 +115,7 @@ export function buildMonthCalendar(
       isToday: iso === todayIso,
       completed: count.completed,
       started: count.started,
+      impression: count.impression,
     };
   });
 }

@@ -37,6 +37,7 @@ import {
   warmupVoiceCue,
   type Readiness,
 } from "@/lib/workout-assist";
+import type { SessionImpression } from "@/lib/workout-stats";
 
 export default function WorkoutPage() {
   const params = useParams<{ planDayId: string }>();
@@ -73,6 +74,7 @@ function Runner({ day }: { day: PlanDayOut }) {
   const [loggedSets, setLoggedSets] = useState<LoggedSetSummary[]>([]);
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  const [impression, setImpression] = useState<SessionImpression | null>(null);
   const recommendation = readinessRecommendation(readiness);
   const warmup = warmupForExercises(day.exercises);
   const summary = buildSessionSummary(loggedSets);
@@ -105,7 +107,10 @@ function Runner({ day }: { day: PlanDayOut }) {
       if (sessionId == null) return;
       await api.PATCH("/api/sessions/{session_id}/complete", {
         params: { path: { session_id: sessionId } },
-        body: { notes: formatSessionNotes({ notes, tags, summary }) },
+        body: {
+          notes: formatSessionNotes({ notes, tags, summary }),
+          impression: impression ?? undefined,
+        },
       });
     },
     onSuccess: () => {
@@ -174,6 +179,8 @@ function Runner({ day }: { day: PlanDayOut }) {
         setTags={setTags}
         notes={notes}
         setNotes={setNotes}
+        impression={impression}
+        setImpression={setImpression}
         onComplete={() => complete.mutate()}
         isPending={complete.isPending}
       />
@@ -785,12 +792,20 @@ function SetRow({
 
 const TAGS = ["felt strong", "low energy", "joint pain", "rushed", "great pump", "bad sleep"];
 
+const IMPRESSIONS: { value: SessionImpression; emoji: string; label: string }[] = [
+  { value: "good", emoji: "🙂", label: "Good" },
+  { value: "neutral", emoji: "😐", label: "Okay" },
+  { value: "bad", emoji: "😣", label: "Rough" },
+];
+
 function FinishWorkoutPanel({
   summary,
   tags,
   setTags,
   notes,
   setNotes,
+  impression,
+  setImpression,
   onComplete,
   isPending,
 }: {
@@ -799,6 +814,8 @@ function FinishWorkoutPanel({
   setTags: React.Dispatch<React.SetStateAction<string[]>>;
   notes: string;
   setNotes: (notes: string) => void;
+  impression: SessionImpression | null;
+  setImpression: React.Dispatch<React.SetStateAction<SessionImpression | null>>;
   onComplete: () => void;
   isPending: boolean;
 }) {
@@ -839,6 +856,31 @@ function FinishWorkoutPanel({
             {tag}
           </button>
         ))}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          How did it feel?
+        </span>
+        <div className="flex gap-2">
+          {IMPRESSIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() =>
+                setImpression((current) => (current === opt.value ? null : opt.value))
+              }
+              aria-pressed={impression === opt.value}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium ${
+                impression === opt.value
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                  : "border-zinc-200 bg-white text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+              }`}
+            >
+              <span className="text-base">{opt.emoji}</span>
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
       <textarea
         className="min-h-24 rounded-lg border border-zinc-300 bg-white p-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950"

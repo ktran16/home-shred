@@ -929,7 +929,8 @@ added.
 > State as of this revision: MVP + §16 (R1–R7) + §17 M1/M3/M4 + §18 + the §19.1
 > food log (+ quick-add recent, copy-day, and nutrition history/adherence, §19.5) +
 > named profile manager all shipped.
-> 130 backend tests, 72 FE tests;
+> The four wger feature-level borrowables (§19.8 W1–W4) are also shipped.
+> 151 backend tests, 77 FE tests;
 > ruff/eslint clean, build green. The single remaining AI/ML milestone is **M2
 > (Ollama sidecar)**. Below is the recommended ordering, grounded in what each item
 > unblocks rather than novelty.
@@ -1098,12 +1099,14 @@ deliberately left out of scope). Ordered by value/effort:
   on `/progress` (upload with date+note, newest-first grid, delete). Added `python-multipart`.
   Tests: `tests/test_progress_photos.py` (6, tmp media dir). Export manifest (§19.4) deferred
   with the rest of export.
-- **W4 — Session impression + workout calendar.** `WorkoutSession` already has `notes` but no
-  overall impression. wger logs a per-session general impression (good/neutral/bad) and shows a
-  workout calendar. Add a `WorkoutSession.impression` enum column (nullable, runner captures it
-  on completion) and a month calendar view on `/progress` (or a new `/calendar`) marking
-  trained days + impression colour. Small; pairs with persisting the runner's energy/soreness/
-  sleep inputs already noted in §19.3.
+- **W4 — Session impression + workout calendar. ✅ DONE.** `SessionImpression` StrEnum
+  (good/neutral/bad) + a nullable `workout_sessions.impression` text column (migration
+  `a4b5c6d7e8f9`). `SessionCompleteIn`/`SessionOut` carry it; `complete_session` records it.
+  The runner's finish panel has a "How did it feel?" 🙂/😐/😣 toggle posted on completion, and
+  the existing `/progress` month calendar (`buildMonthCalendar`) now shows the day's impression
+  emoji (with a legend) instead of the plain done-checkbox. Tests: impression roundtrip in
+  `tests/test_api_sessions.py`; calendar-impression in `lib/workout-stats.test.ts`. Persisting
+  the runner's energy/soreness/sleep remains a separate §19.3 follow-up.
 
 These are independent of each other and of the §19.7 P-items; W1 and W2 are the highest
 value-per-effort. Suggested insertion into the §19.6 order: W1/W2 alongside the nutrition

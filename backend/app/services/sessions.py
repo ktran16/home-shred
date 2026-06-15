@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.enums import SessionImpression
 from app.models import PlanDay, SetLog, WorkoutSession
 from app.schemas.session import SetLogIn, SuggestedTargetOut
 from app.services.progression import suggest_next_targets, week_number
@@ -94,13 +95,18 @@ async def add_set_log(db: AsyncSession, session_id: int, data: SetLogIn) -> SetL
 
 
 async def complete_session(
-    db: AsyncSession, session_id: int, notes: str | None = None
+    db: AsyncSession,
+    session_id: int,
+    notes: str | None = None,
+    impression: SessionImpression | None = None,
 ) -> WorkoutSession | None:
     session = await db.get(WorkoutSession, session_id)
     if session is None:
         return None
     if notes is not None:
         session.notes = notes
+    if impression is not None:
+        session.impression = impression
     session.completed = True
     await db.commit()
     return await _load_session(db, session_id)

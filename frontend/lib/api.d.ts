@@ -1436,6 +1436,7 @@ export interface components {
         SessionCompleteIn: {
             /** Notes */
             notes?: string | null;
+            impression?: components["schemas"]["SessionImpression"] | null;
         };
         /** SessionCreateIn */
         SessionCreateIn: {
@@ -1444,6 +1445,12 @@ export interface components {
             /** Date */
             date?: string | null;
         };
+        /**
+         * SessionImpression
+         * @description Overall how a workout felt (SPEC §19.8 W4).
+         * @enum {string}
+         */
+        SessionImpression: "good" | "neutral" | "bad";
         /** SessionOut */
         SessionOut: {
             /** Id */
@@ -1457,6 +1464,7 @@ export interface components {
             date: string;
             /** Notes */
             notes: string | null;
+            impression?: components["schemas"]["SessionImpression"] | null;
             /** Completed */
             completed: boolean;
             /**

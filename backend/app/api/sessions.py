@@ -56,7 +56,12 @@ async def complete_session(
     data: SessionCompleteIn | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> SessionOut:
-    session = await svc.complete_session(db, session_id, notes=data.notes if data else None)
+    session = await svc.complete_session(
+        db,
+        session_id,
+        notes=data.notes if data else None,
+        impression=data.impression if data else None,
+    )
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return SessionOut.model_validate(session)

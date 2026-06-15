@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.enums import SessionImpression
 
 if TYPE_CHECKING:
     from app.models.exercise import Exercise
@@ -26,6 +27,8 @@ class WorkoutSession(Base):
     plan_day_id: Mapped[int | None] = mapped_column(ForeignKey("plan_days.id"), nullable=True)
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Overall how the workout felt (SPEC §19.8 W4); set on completion, stored as text.
+    impression: Mapped[SessionImpression | None] = mapped_column(Text, nullable=True)
     completed: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )

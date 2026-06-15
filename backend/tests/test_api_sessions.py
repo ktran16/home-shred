@@ -68,6 +68,23 @@ async def test_log_sets_and_complete(client: AsyncClient, seeded: None) -> None:
     assert "felt strong" in done.json()["notes"]
 
 
+async def test_complete_records_impression(client: AsyncClient, seeded: None) -> None:
+    plan = await _make_plan(client)
+    day = plan["days"][0]
+    sess = (await client.post("/api/sessions", json={"plan_day_id": day["id"]})).json()
+
+    # impression defaults to null until set on completion (SPEC §19.8 W4)
+    assert sess["impression"] is None
+    done = await client.patch(
+        f"/api/sessions/{sess['id']}/complete",
+        json={"impression": "good"},
+    )
+    assert done.status_code == 200
+    assert done.json()["impression"] == "good"
+    # it survives a re-fetch
+    assert (await client.get(f"/api/sessions/{sess['id']}")).json()["impression"] == "good"
+
+
 async def test_progression_applies_next_session(client: AsyncClient, seeded: None) -> None:
     """After a completed session at top-of-range with weight, next suggestion bumps weight."""
     plan = await _make_plan(client)

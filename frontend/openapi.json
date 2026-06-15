@@ -4394,6 +4394,16 @@
               }
             ],
             "title": "Notes"
+          },
+          "impression": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionImpression"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4423,6 +4433,16 @@
           "plan_day_id"
         ],
         "title": "SessionCreateIn"
+      },
+      "SessionImpression": {
+        "type": "string",
+        "enum": [
+          "good",
+          "neutral",
+          "bad"
+        ],
+        "title": "SessionImpression",
+        "description": "Overall how a workout felt (SPEC \u00a719.8 W4)."
       },
       "SessionOut": {
         "properties": {
@@ -4456,6 +4476,16 @@
               }
             ],
             "title": "Notes"
+          },
+          "impression": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionImpression"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "completed": {
             "type": "boolean",

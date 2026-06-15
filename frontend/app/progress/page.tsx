@@ -558,6 +558,8 @@ function WorkoutSummary({
   );
 }
 
+const IMPRESSION_EMOJI: Record<string, string> = { good: "🙂", neutral: "😐", bad: "😣" };
+
 function CalendarGrid({ days }: { days: CalendarDay[] }) {
   const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
   return (
@@ -571,7 +573,9 @@ function CalendarGrid({ days }: { days: CalendarDay[] }) {
         {days.map((day) => (
           <label
             key={day.iso}
-            title={`${day.iso}: ${day.completed} completed, ${day.started} started`}
+            title={`${day.iso}: ${day.completed} completed, ${day.started} started${
+              day.impression ? ` · felt ${day.impression}` : ""
+            }`}
             className={[
               "flex min-h-[48px] cursor-default flex-col items-center justify-center rounded-lg border text-xs transition-colors",
               day.inMonth
@@ -583,17 +587,29 @@ function CalendarGrid({ days }: { days: CalendarDay[] }) {
                 : "",
             ].join(" ")}
           >
-            <input
-              type="checkbox"
-              readOnly
-              checked={day.completed > 0}
-              aria-label={`${day.iso} completed`}
-              className="mb-1 h-4 w-4 accent-emerald-600"
-            />
+            {day.impression ? (
+              <span className="mb-0.5 text-sm leading-none" aria-label={`felt ${day.impression}`}>
+                {IMPRESSION_EMOJI[day.impression]}
+              </span>
+            ) : (
+              <input
+                type="checkbox"
+                readOnly
+                checked={day.completed > 0}
+                aria-label={`${day.iso} completed`}
+                className="mb-1 h-4 w-4 accent-emerald-600"
+              />
+            )}
             <span className="font-semibold">{day.day}</span>
             {day.completed > 1 && <span className="text-[10px]">x{day.completed}</span>}
           </label>
         ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+        <span>🙂 good</span>
+        <span>😐 neutral</span>
+        <span>😣 rough</span>
+        <span>☑︎ done (no rating)</span>
       </div>
     </div>
   );

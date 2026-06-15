@@ -4,6 +4,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.enums import SessionImpression
+
 
 class SessionCreateIn(BaseModel):
     plan_day_id: int
@@ -12,6 +14,7 @@ class SessionCreateIn(BaseModel):
 
 class SessionCompleteIn(BaseModel):
     notes: str | None = Field(default=None, max_length=2000)
+    impression: SessionImpression | None = None
 
 
 class SetLogIn(BaseModel):
@@ -49,6 +52,7 @@ class SessionOut(BaseModel):
     plan_day_id: int | None
     date: date_type
     notes: str | None
+    impression: SessionImpression | None = None
     completed: bool
     created_at: datetime
     set_logs: list[SetLogOut] = []

@@ -1,21 +1,32 @@
 import { describe, expect, it } from "vitest";
 
 import type { SessionOut } from "@/lib/api";
-import { buildMonthCalendar, buildWorkoutStats } from "@/lib/workout-stats";
+import {
+  buildMonthCalendar,
+  buildWorkoutStats,
+  type SessionImpression,
+} from "@/lib/workout-stats";
 
 const baseSession = {
   id: 1,
   plan_day_id: 1,
   notes: null,
+  impression: null,
   created_at: "2026-06-10T00:00:00Z",
   suggested_targets: [],
 } satisfies Omit<SessionOut, "date" | "completed" | "set_logs">;
 
-function session(date: string, completed = true, reps = 10): SessionOut {
+function session(
+  date: string,
+  completed = true,
+  reps = 10,
+  impression: SessionImpression | null = null,
+): SessionOut {
   return {
     ...baseSession,
     date,
     completed,
+    impression,
     set_logs: completed
       ? [
           {
@@ -67,5 +78,16 @@ describe("workout stats", () => {
       isToday: true,
     });
     expect(days.find((d) => d.iso === "2026-06-15")).toMatchObject({ started: 1 });
+  });
+
+  it("surfaces a completed day's impression on the calendar", () => {
+    const days = buildMonthCalendar(
+      [session("2026-06-14", true, 10, "good"), session("2026-06-13", false)],
+      new Date("2026-06-14T00:00:00.000Z"),
+      new Date("2026-06-14T00:00:00.000Z"),
+    );
+    expect(days.find((d) => d.iso === "2026-06-14")?.impression).toBe("good");
+    // a started-only day carries no impression
+    expect(days.find((d) => d.iso === "2026-06-13")?.impression).toBeNull();
   });
 });

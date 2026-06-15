@@ -64,6 +64,14 @@ class FoodLogSource(StrEnum):
     LLM = "llm"
 
 
+class SessionImpression(StrEnum):
+    """Overall how a workout felt (SPEC §19.8 W4)."""
+
+    GOOD = "good"
+    NEUTRAL = "neutral"
+    BAD = "bad"
+
+
 # rationale: TDEE multipliers per activity level (SPEC §4, §8).
 ACTIVITY_FACTORS: dict[ActivityLevel, float] = {
     ActivityLevel.SEDENTARY: 1.2,
