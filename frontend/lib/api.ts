@@ -37,3 +37,4 @@ export type NutritionHistoryOut = components["schemas"]["NutritionHistoryOut"];
 export type MeasurementTypeOut = components["schemas"]["MeasurementTypeOut"];
 export type MeasurementEntryOut = components["schemas"]["MeasurementEntryOut"];
 export type MeasurementSeriesOut = components["schemas"]["MeasurementSeriesOut"];
+export type ProgressPhotoOut = components["schemas"]["ProgressPhotoOut"];

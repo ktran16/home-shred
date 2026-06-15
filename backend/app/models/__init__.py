@@ -8,6 +8,7 @@ from app.models.measurement import MeasurementEntry, MeasurementType
 from app.models.metrics import BodyMetric, NutritionTarget
 from app.models.plan import Plan, PlanDay, PlanExercise
 from app.models.profile import UserProfile
+from app.models.progress_photo import ProgressPhoto
 from app.models.session import SetLog, WorkoutSession
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "NutritionTarget",
     "MeasurementType",
     "MeasurementEntry",
+    "ProgressPhoto",
 ]

@@ -13,6 +13,8 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://homeshred:homeshred@localhost:5434/homeshred_test"
     )
     cors_origins: str = "http://localhost:3000"
+    # Where uploaded progress photos are stored (SPEC §19.8 W3). Mounted as a volume in prod.
+    media_dir: str = "media"
 
     @property
     def cors_origin_list(self) -> list[str]:

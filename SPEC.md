@@ -1087,12 +1087,17 @@ deliberately left out of scope). Ordered by value/effort:
   FE reuses `lib/food.ts` scaling. FE: a "Search a food" card on `/nutrition` (search → pick →
   grams → Add to log, same `FoodLogIn` path as the scanner). Tests: `tests/test_food_search.py`
   (7, network monkeypatched). Note (§17.7): an OFF query leaves the LAN — opt-in/external.
-- **W3 — Progress photos gallery.** wger has a date-tagged photo gallery for visual progress —
-  a strong fit for a private recomp app. Add a `progress_photo` table (`date`, stored file
-  path, optional note) with local disk storage under a configured media dir (mounted as a
-  volume in `docker-compose.prod.yml`), an upload + date-compare view, and the JSON/CSV export
-  (§19.4) gaining a photo manifest. The **only** feature here touching file upload/serving —
-  scope its storage and size limits explicitly. Medium.
+- **W3 — Progress photos gallery. ✅ DONE.** `progress_photos` table (`date`, `filename`,
+  `content_type`, `note`) via migration `f3a4b5c6d7e8`; image bytes are written to disk under a
+  configured `MEDIA_DIR` (new setting; mounted as the `media` volume in
+  `docker-compose.prod.yml`, gitignored in dev). `services/progress_photos.py` validates
+  content type (JPEG/PNG/WebP → 415) and size (≤10 MB → 413), takes raw bytes (HTTP-agnostic /
+  testable). Endpoints on the progress router: `POST /api/progress/photos` (multipart),
+  `GET /api/progress/photos`, `GET /api/progress/photos/{id}/image` (FileResponse),
+  `DELETE /api/progress/photos/{id}` (removes row + file). FE: a "Progress photos" gallery card
+  on `/progress` (upload with date+note, newest-first grid, delete). Added `python-multipart`.
+  Tests: `tests/test_progress_photos.py` (6, tmp media dir). Export manifest (§19.4) deferred
+  with the rest of export.
 - **W4 — Session impression + workout calendar.** `WorkoutSession` already has `notes` but no
   overall impression. wger logs a per-session general impression (good/neutral/bad) and shows a
   workout calendar. Add a `WorkoutSession.impression` enum column (nullable, runner captures it

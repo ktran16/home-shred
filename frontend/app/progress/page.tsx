@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { ProgressPhotosCard } from "@/components/progress-photos";
 import { Badge, Button, Card, Input, Label, Select } from "@/components/ui";
 import {
   api,
@@ -148,6 +149,8 @@ export default function ProgressPage() {
       <AddMetric />
 
       <MeasurementsSection />
+
+      <ProgressPhotosCard />
     </div>
   );
 }
