@@ -1,4 +1,9 @@
-import type { DailyFoodLogOut, FoodLogIn, FoodLogRecentOut } from "@/lib/api";
+import type {
+  DailyFoodLogOut,
+  FoodLogIn,
+  FoodLogRecentOut,
+  NutritionHistoryOut,
+} from "@/lib/api";
 
 export type ManualFoodDraft = {
   name: string;
@@ -88,6 +93,37 @@ export function remainingLabel(value: number | string | null | undefined, unit =
 
 export function hasLoggedFood(log: DailyFoodLogOut | null | undefined): boolean {
   return (log?.entries.length ?? 0) > 0;
+}
+
+export type NutritionHistoryRow = {
+  date: string;
+  kcal: number;
+  target_kcal: number | null;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  logged: boolean;
+  kcal_adherent: boolean;
+};
+
+export function nutritionHistoryRows(
+  history: NutritionHistoryOut | null | undefined,
+): NutritionHistoryRow[] {
+  return (history?.days ?? []).map((day) => ({
+    date: day.date.slice(5),
+    kcal: day.kcal,
+    target_kcal: day.target_kcal ?? null,
+    protein_g: Number(day.protein_g),
+    carbs_g: Number(day.carbs_g),
+    fat_g: Number(day.fat_g),
+    logged: day.logged,
+    kcal_adherent: day.kcal_adherent,
+  }));
+}
+
+export function adherenceSummary(history: NutritionHistoryOut | null | undefined): string {
+  if (!history || history.target_days === 0) return "No target";
+  return `${history.adherence_pct}% (${history.adherent_days}/${history.target_days} days)`;
 }
 
 function round1(value: number): number {

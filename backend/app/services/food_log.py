@@ -52,6 +52,47 @@ class DailyFoodLog:
         return None if self.target is None else Decimal(self.target.fat_g) - self.totals.fat_g
 
 
+@dataclass(frozen=True)
+class NutritionHistoryDay:
+    date: date
+    totals: FoodLogTotals
+    target: NutritionTarget | None
+    logged: bool
+
+    @property
+    def kcal_adherent(self) -> bool:
+        if self.target is None or not self.logged:
+            return False
+        lower = self.target.target_kcal * Decimal("0.90")
+        upper = self.target.target_kcal * Decimal("1.10")
+        return lower <= self.totals.kcal <= upper
+
+
+@dataclass(frozen=True)
+class NutritionHistory:
+    start_date: date
+    end_date: date
+    days: list[NutritionHistoryDay]
+
+    @property
+    def logged_days(self) -> int:
+        return sum(1 for day in self.days if day.logged)
+
+    @property
+    def target_days(self) -> int:
+        return sum(1 for day in self.days if day.target is not None)
+
+    @property
+    def adherent_days(self) -> int:
+        return sum(1 for day in self.days if day.kcal_adherent)
+
+    @property
+    def adherence_pct(self) -> int:
+        if self.target_days == 0:
+            return 0
+        return round(self.adherent_days / self.target_days * 100)
+
+
 async def create_entry(db: AsyncSession, data: FoodLogIn) -> FoodLog:
     entry = FoodLog(
         date=data.date or date.today(),
@@ -157,6 +198,52 @@ async def copy_day(db: AsyncSession, *, from_date: date, to_date: date) -> list[
     for entry in copied:
         await db.refresh(entry)
     return copied
+
+
+async def nutrition_history(
+    db: AsyncSession,
+    *,
+    end_date: date | None = None,
+    days: int = 7,
+) -> NutritionHistory:
+    """Return daily food totals and targets for a short adherence trend."""
+    last_day = end_date or date.today()
+    start_day = last_day - timedelta(days=days - 1)
+
+    entries = list(
+        await db.scalars(
+            select(FoodLog).where(FoodLog.date >= start_day, FoodLog.date <= last_day)
+        )
+    )
+    entries_by_date: dict[date, list[FoodLog]] = defaultdict(list)
+    for entry in entries:
+        entries_by_date[entry.date].append(entry)
+
+    targets = list(
+        await db.scalars(
+            select(NutritionTarget)
+            .where(NutritionTarget.date <= last_day)
+            .order_by(NutritionTarget.date, NutritionTarget.id)
+        )
+    )
+    history_days: list[NutritionHistoryDay] = []
+    target_idx = 0
+    active_target: NutritionTarget | None = None
+    for day in _date_range(start_day, last_day):
+        while target_idx < len(targets) and targets[target_idx].date <= day:
+            active_target = targets[target_idx]
+            target_idx += 1
+        day_entries = entries_by_date.get(day, [])
+        history_days.append(
+            NutritionHistoryDay(
+                date=day,
+                totals=_totals(day_entries),
+                target=active_target,
+                logged=bool(day_entries),
+            )
+        )
+
+    return NutritionHistory(start_date=start_day, end_date=last_day, days=history_days)
 
 
 async def daily_intake_kcals(

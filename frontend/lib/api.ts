@@ -33,3 +33,4 @@ export type FoodLogOut = components["schemas"]["FoodLogOut"];
 export type FoodLogRecentOut = components["schemas"]["FoodLogRecentOut"];
 export type FoodLogCopyDayIn = components["schemas"]["FoodLogCopyDayIn"];
 export type DailyFoodLogOut = components["schemas"]["DailyFoodLogOut"];
+export type NutritionHistoryOut = components["schemas"]["NutritionHistoryOut"];

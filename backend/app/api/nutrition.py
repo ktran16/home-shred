@@ -13,6 +13,8 @@ from app.schemas.nutrition import (
     FoodLogOut,
     FoodLogRecentOut,
     FoodLogTotalsOut,
+    NutritionHistoryDayOut,
+    NutritionHistoryOut,
     NutritionTargetOut,
     SuggestedTargets,
 )
@@ -85,6 +87,39 @@ async def copy_food_log_day(
     except food_log.FoodLogSourceDayEmptyError as exc:
         raise HTTPException(status_code=404, detail="No food logged on source day") from exc
     return _daily_log_out(await food_log.daily_log(db, data.to_date))
+
+
+@router.get("/log/history", response_model=NutritionHistoryOut)
+async def food_log_history(
+    end_date: date_type | None = None,
+    days: int = Query(default=7, ge=1, le=31),
+    db: AsyncSession = Depends(get_db),
+) -> NutritionHistoryOut:
+    history = await food_log.nutrition_history(db, end_date=end_date, days=days)
+    return NutritionHistoryOut(
+        start_date=history.start_date,
+        end_date=history.end_date,
+        days=[
+            NutritionHistoryDayOut(
+                date=day.date,
+                logged=day.logged,
+                kcal=day.totals.kcal,
+                protein_g=day.totals.protein_g,
+                carbs_g=day.totals.carbs_g,
+                fat_g=day.totals.fat_g,
+                target_kcal=day.target.target_kcal if day.target is not None else None,
+                target_protein_g=day.target.protein_g if day.target is not None else None,
+                target_carbs_g=day.target.carbs_g if day.target is not None else None,
+                target_fat_g=day.target.fat_g if day.target is not None else None,
+                kcal_adherent=day.kcal_adherent,
+            )
+            for day in history.days
+        ],
+        logged_days=history.logged_days,
+        target_days=history.target_days,
+        adherent_days=history.adherent_days,
+        adherence_pct=history.adherence_pct,
+    )
 
 
 @router.delete("/log/{entry_id}", response_model=DailyFoodLogOut)

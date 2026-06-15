@@ -1529,6 +1529,68 @@
         }
       }
     },
+    "/api/nutrition/log/history": {
+      "get": {
+        "tags": [
+          "nutrition"
+        ],
+        "summary": "Food Log History",
+        "operationId": "food_log_history_api_nutrition_log_history_get",
+        "parameters": [
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 31,
+              "minimum": 1,
+              "default": 7,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NutritionHistoryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/nutrition/log/{entry_id}": {
       "delete": {
         "tags": [
@@ -2910,6 +2972,149 @@
         ],
         "title": "MovementPattern",
         "description": "Used by the generator for balanced selection (SPEC \u00a74)."
+      },
+      "NutritionHistoryDayOut": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "logged": {
+            "type": "boolean",
+            "title": "Logged"
+          },
+          "kcal": {
+            "type": "integer",
+            "title": "Kcal"
+          },
+          "protein_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Protein G"
+          },
+          "carbs_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Carbs G"
+          },
+          "fat_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Fat G"
+          },
+          "target_kcal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Kcal"
+          },
+          "target_protein_g": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Protein G"
+          },
+          "target_carbs_g": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Carbs G"
+          },
+          "target_fat_g": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Fat G"
+          },
+          "kcal_adherent": {
+            "type": "boolean",
+            "title": "Kcal Adherent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "logged",
+          "kcal",
+          "protein_g",
+          "carbs_g",
+          "fat_g",
+          "target_kcal",
+          "target_protein_g",
+          "target_carbs_g",
+          "target_fat_g",
+          "kcal_adherent"
+        ],
+        "title": "NutritionHistoryDayOut"
+      },
+      "NutritionHistoryOut": {
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/NutritionHistoryDayOut"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "logged_days": {
+            "type": "integer",
+            "title": "Logged Days"
+          },
+          "target_days": {
+            "type": "integer",
+            "title": "Target Days"
+          },
+          "adherent_days": {
+            "type": "integer",
+            "title": "Adherent Days"
+          },
+          "adherence_pct": {
+            "type": "integer",
+            "title": "Adherence Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_date",
+          "end_date",
+          "days",
+          "logged_days",
+          "target_days",
+          "adherent_days",
+          "adherence_pct"
+        ],
+        "title": "NutritionHistoryOut"
       },
       "NutritionTargetOut": {
         "properties": {

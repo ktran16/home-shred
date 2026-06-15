@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   EMPTY_FOOD_DRAFT,
+  adherenceSummary,
   draftToFoodLog,
   hasLoggedFood,
   macroPercent,
+  nutritionHistoryRows,
   recentFoodToLog,
   remainingLabel,
   todayIsoDate,
@@ -85,5 +87,45 @@ describe("food log helpers", () => {
       source: "barcode",
       barcode: "0123456789012",
     });
+  });
+
+  it("normalizes nutrition history for summaries and charts", () => {
+    const history = {
+      start_date: "2026-06-09",
+      end_date: "2026-06-15",
+      logged_days: 2,
+      target_days: 7,
+      adherent_days: 1,
+      adherence_pct: 14,
+      days: [
+        {
+          date: "2026-06-13",
+          logged: true,
+          kcal: 1900,
+          protein_g: "100.0",
+          carbs_g: "150.0",
+          fat_g: "50.0",
+          target_kcal: 2000,
+          target_protein_g: 160,
+          target_carbs_g: 200,
+          target_fat_g: 60,
+          kcal_adherent: true,
+        },
+      ],
+    };
+
+    expect(adherenceSummary(history)).toBe("14% (1/7 days)");
+    expect(nutritionHistoryRows(history)).toEqual([
+      {
+        date: "06-13",
+        kcal: 1900,
+        target_kcal: 2000,
+        protein_g: 100,
+        carbs_g: 150,
+        fat_g: 50,
+        logged: true,
+        kcal_adherent: true,
+      },
+    ]);
   });
 });

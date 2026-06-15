@@ -5,7 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import FoodLogSource
-from app.models import BodyMetric, FoodLog
+from app.models import BodyMetric, FoodLog, NutritionTarget
 
 PROFILE = {
     "name": "Khoa",
@@ -149,6 +149,68 @@ async def test_food_log_recent_and_copy_day(client: AsyncClient) -> None:
         json={"from_date": today.isoformat(), "to_date": today.isoformat()},
     )
     assert same_day.status_code == 422
+
+
+async def test_food_log_history_adherence(client: AsyncClient, db: AsyncSession) -> None:
+    end = date(2026, 6, 15)
+    db.add(
+        NutritionTarget(
+            date=end - timedelta(days=6),
+            tdee_kcal=2500,
+            target_kcal=2000,
+            protein_g=160,
+            carbs_g=200,
+            fat_g=60,
+        )
+    )
+    db.add_all(
+        [
+            FoodLog(
+                date=end - timedelta(days=2),
+                name="Adherent day",
+                grams=Decimal("100.0"),
+                kcal=1900,
+                protein_g=Decimal("100.0"),
+                carbs_g=Decimal("150.0"),
+                fat_g=Decimal("50.0"),
+                source=FoodLogSource.MANUAL,
+            ),
+            FoodLog(
+                date=end - timedelta(days=1),
+                name="Over day",
+                grams=Decimal("100.0"),
+                kcal=2300,
+                protein_g=Decimal("120.0"),
+                carbs_g=Decimal("200.0"),
+                fat_g=Decimal("70.0"),
+                source=FoodLogSource.MANUAL,
+            ),
+        ]
+    )
+    await db.commit()
+
+    res = await client.get("/api/nutrition/log/history", params={"end_date": end.isoformat()})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["start_date"] == "2026-06-09"
+    assert body["end_date"] == "2026-06-15"
+    assert body["logged_days"] == 2
+    assert body["target_days"] == 7
+    assert body["adherent_days"] == 1
+    assert body["adherence_pct"] == 14
+
+    adherent = body["days"][4]
+    assert adherent["date"] == "2026-06-13"
+    assert adherent["logged"] is True
+    assert adherent["kcal"] == 1900
+    assert adherent["target_kcal"] == 2000
+    assert adherent["kcal_adherent"] is True
+
+    empty = body["days"][6]
+    assert empty["date"] == "2026-06-15"
+    assert empty["logged"] is False
+    assert empty["kcal"] == 0
+    assert empty["kcal_adherent"] is False
 
 
 async def test_adaptive_tdee_prefers_logged_intake(client: AsyncClient, db: AsyncSession) -> None:

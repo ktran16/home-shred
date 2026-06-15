@@ -3,14 +3,34 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { Button, Card, Input, Label } from "@/components/ui";
-import { api, type DailyFoodLogOut, type FoodLogIn, type FoodLogRecentOut } from "@/lib/api";
+import {
+  api,
+  type DailyFoodLogOut,
+  type FoodLogIn,
+  type FoodLogRecentOut,
+  type NutritionHistoryOut,
+} from "@/lib/api";
 import {
   EMPTY_FOOD_DRAFT,
+  adherenceSummary,
   draftToFoodLog,
   macroPercent,
+  nutritionHistoryRows,
   recentFoodToLog,
   remainingLabel,
   todayIsoDate,
@@ -78,9 +98,21 @@ export default function NutritionPage() {
     },
   });
 
+  const history = useQuery({
+    queryKey: ["nutrition-history", logDate],
+    enabled: !!data,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/nutrition/log/history", {
+        params: { query: { end_date: logDate, days: 7 } },
+      });
+      return data ?? null;
+    },
+  });
+
   const invalidateFoodLog = () => {
     qc.invalidateQueries({ queryKey: ["food-log", logDate] });
     qc.invalidateQueries({ queryKey: ["food-recent"] });
+    qc.invalidateQueries({ queryKey: ["nutrition-history"] });
     qc.invalidateQueries({ queryKey: ["nutrition-adaptive"] });
   };
 
@@ -226,11 +258,113 @@ export default function NutritionPage() {
         error={addFood.error?.message ?? deleteFood.error?.message ?? copyDay.error?.message}
       />
 
+      <NutritionHistoryCard
+        history={history.data ?? null}
+        loading={history.isLoading}
+        error={history.isError}
+      />
+
       <BarcodeScanner
         logging={addFood.isPending}
         onLog={(entry) => addFood.mutate({ ...entry, date: logDate })}
       />
     </div>
+  );
+}
+
+function NutritionHistoryCard({
+  history,
+  loading,
+  error,
+}: {
+  history: NutritionHistoryOut | null;
+  loading: boolean;
+  error: boolean;
+}) {
+  const rows = nutritionHistoryRows(history);
+
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="font-semibold">7-day adherence</h2>
+          <p className="text-sm text-zinc-500">
+            {history
+              ? `${history.logged_days} logged days · ${history.start_date} to ${history.end_date}`
+              : "Weekly calories and macros against target."}
+          </p>
+        </div>
+        <div className="rounded-lg bg-emerald-50 px-3 py-2 text-right dark:bg-emerald-950/40">
+          <div className="text-2xl font-bold tabular-nums text-emerald-600">
+            {history ? `${history.adherence_pct}%` : "--"}
+          </div>
+          <div className="text-xs text-emerald-700 dark:text-emerald-300">
+            {adherenceSummary(history)}
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-zinc-500">Loading nutrition history...</p>
+      ) : error ? (
+        <p className="text-sm text-red-600">Could not load nutrition history.</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-zinc-500">No history yet.</p>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={190}>
+            <ComposedChart data={rows} margin={{ left: -12, right: 8, top: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" fontSize={11} />
+              <YAxis fontSize={11} />
+              <Tooltip />
+              <Bar dataKey="kcal" name="Logged kcal" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Line
+                type="monotone"
+                dataKey="target_kcal"
+                name="Target kcal"
+                stroke="#ef4444"
+                strokeWidth={2}
+                dot={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+
+          <ResponsiveContainer width="100%" height={190}>
+            <LineChart data={rows} margin={{ left: -12, right: 8, top: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" fontSize={11} />
+              <YAxis fontSize={11} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Line type="monotone" dataKey="protein_g" name="Protein" stroke="#3b82f6" strokeWidth={2} />
+              <Line type="monotone" dataKey="carbs_g" name="Carbs" stroke="#f59e0b" strokeWidth={2} />
+              <Line type="monotone" dataKey="fat_g" name="Fat" stroke="#f43f5e" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+
+          <div className="grid grid-cols-7 gap-1">
+            {history?.days.map((day) => (
+              <div
+                key={day.date}
+                className={[
+                  "rounded-md px-1.5 py-2 text-center text-[11px] tabular-nums",
+                  day.kcal_adherent
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                    : day.logged
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                      : "bg-zinc-100 text-zinc-500 dark:bg-zinc-900",
+                ].join(" ")}
+                title={`${day.date}: ${day.kcal} kcal${day.target_kcal ? ` / ${day.target_kcal}` : ""}`}
+              >
+                <div>{day.date.slice(5)}</div>
+                <div className="font-semibold">{day.logged ? day.kcal : "-"}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
   );
 }
 

@@ -486,6 +486,7 @@ GET   /api/nutrition/log        ?date         → DailyFoodLogOut     # daily en
 POST  /api/nutrition/log        FoodLogIn     → DailyFoodLogOut     # manual/barcode/llm-source entry (§19.1)
 GET   /api/nutrition/log/recent ?limit        → list[FoodLogRecentOut]  # recent distinct foods for quick-add (§19.5)
 POST  /api/nutrition/log/copy-day FoodLogCopyDayIn → DailyFoodLogOut # clone a day's entries; 404 if source empty (§19.5)
+GET   /api/nutrition/log/history ?end_date&days → NutritionHistoryOut # 7-day adherence/trend (§19.5)
 DELETE /api/nutrition/log/{id}                → DailyFoodLogOut     # delete entry, return updated day (§19.1)
 GET   /api/nutrition/adaptive                → AdaptiveTDEEOut     # adaptive-TDEE preview (§17.3 A1)
 POST  /api/nutrition/adaptive/apply          → NutritionTargetOut  # persist today's adaptive target (§17.3 A1)
@@ -742,6 +743,17 @@ adding ML:
 All of the above stay deterministic and unit-testable, preserving the "no ML"
 constraint while making the output meaningfully smarter.
 
+**Comparison note (vs. wger).** A 2026-06 review of `wger`'s routine engine
+(declarative per-field change-configs: `operation ∈ {+,-,replace}`, `step ∈
+{absolute,percent}`, `repeat`, log-gated `requirements`, plus a `class_name`
+custom-logic hook) surfaced gaps our reactive engine doesn't cover. They are
+captured as future, **rule-based** roadmap items in **§19.7** rather than here,
+since none is built. Key takeaways: wger is *declarative* (the user authors the
+schedule; the engine only advances when logs meet a `>=` gate and never regresses),
+whereas HomeShred is *reactive* (it reads logged reps + RPE and auto-decides
+progress/hold/deload). Our engine is the stronger autoregulator; wger is the more
+expressive scheduler. The borrowable gaps are in §19.7.
+
 ---
 
 ## 17. AI / ML Roadmap (local-first, CPU-only)
@@ -915,8 +927,9 @@ added.
 ## 19. What's Next — Roadmap & Brainstorm
 
 > State as of this revision: MVP + §16 (R1–R7) + §17 M1/M3/M4 + §18 + the §19.1
-> food log (+ quick-add recent & copy-day, §19.5) + named profile manager all shipped.
-> 129 backend tests, 71 FE tests;
+> food log (+ quick-add recent, copy-day, and nutrition history/adherence, §19.5) +
+> named profile manager all shipped.
+> 130 backend tests, 72 FE tests;
 > ruff/eslint clean, build green. The single remaining AI/ML milestone is **M2
 > (Ollama sidecar)**. Below is the recommended ordering, grounded in what each item
 > unblocks rather than novelty.
@@ -986,10 +999,11 @@ to add — no ML, no new external calls. Highest daily value first:
 - **Copy a day.** ✅ DONE. `POST /api/nutrition/log/copy-day {from_date, to_date}` clones
   every entry from a source day into the selected day (404 if the source day is empty);
   `/nutrition` has a "Copy a day" control defaulting to the day before.
-- **Nutrition history & adherence.** A weekly view on `/nutrition`: logged kcal/macros vs
-  target per day, a 7-day adherence %, and a macro-trend chart (mirrors the §18 strength
-  chart and the §5/§9 weekly-volume rollup). Turns the food log into feedback, and the
-  measured intake also sharpens the §17.3-A1 adaptive-TDEE estimate.
+- **Nutrition history & adherence.** ✅ DONE. `GET /api/nutrition/log/history?end_date&days`
+  returns daily logged kcal/macros plus the target in effect for each day. `/nutrition`
+  shows a 7-day adherence card with kcal-vs-target bars, macro trend lines, and daily
+  status chips. A day counts as adherent when food was logged and calories land within
+  90–110% of that day's target.
 - **Meal / recipe templates.** Save a named combination of foods (e.g. "post-workout
   shake") and log it as one entry — natural follow-on once quick-add exists.
 
@@ -998,8 +1012,8 @@ These also de-risk **M2 B1a** (§19.2): NL food logging just needs to emit the s
 
 ### 19.6 Suggested order
 1. **Ops hardening** (backups, password, deploy) — do before relying on it daily.
-2. **Nutrition follow-ups** (§19.5) — quick-add/copy-day ✅ done; next is the weekly
-   adherence view, then meal/recipe templates. Cheapest remaining wins.
+2. **Nutrition follow-ups** (§19.5) — quick-add/copy-day/history ✅ done; next is
+   meal/recipe templates. Cheapest remaining wins.
 3. **PWA/offline** for the runner.
 4. **Data export/import** (§19.4) — once there's enough data worth owning.
 5. **Plan lifecycle** (archive/edit plans, mesocycle rollover prompt).
@@ -1007,3 +1021,40 @@ These also de-risk **M2 B1a** (§19.2): NL food logging just needs to emit the s
    used as real multi-person support.
 7. **A2/A3/pose maturation** — only when accumulated data makes the upgrade pay off.
 8. **M2 B1a/B1b** remains available later, but is intentionally ignored for now.
+
+### 19.7 Progression-engine gaps (vs. wger) — rule-based, not yet built
+A review of `wger`'s routine progression engine (declarative per-field
+change-configs, log-gated requirements, `class_name` custom hook) against our §7/§16
+engine identified the following borrowable, **ML-free** improvements. Our engine is
+the stronger *autoregulator* (it reads logged reps + RPE and auto-decides
+progress/hold/deload, deloads on a grind, and schedules a mesocycle deload — wger does
+none of this natively); wger is the more expressive *scheduler*. These items close that
+expressiveness gap **without** dropping our reactive defaults. Ordered by value/effort:
+
+- **P1 — User progression overrides (per plan_exercise).** Today the engine's automatic
+  decision is the only option. Add an optional per-exercise override so the user can pin
+  a scheme (e.g. "+2.5 kg every week regardless", "hold reps, ramp sets") that
+  `suggest_next_targets` honours ahead of the reactive rules. Mirrors wger's declarative
+  change-config but keeps reactive autoregulation as the default when no override is set.
+  Likely a new `plan_exercise.progression_override` JSON/enum column + a branch at the top
+  of `suggest_next_targets`.
+- **P2 — Per-field independent progression.** Our engine progresses weight **or** reps
+  only; rest/sets are fixed at generation. wger schedules ten fields independently. Allow
+  reps, weight, sets, and rest to each carry their own multi-week intent so undulating /
+  block schemes are expressible. Builds on P1's override shape.
+- **P3 — Authorable periodization curve.** §16 R2's 4-week curve (1.0/1.1/1.2/0.6) is
+  fixed. Let the user supply a custom per-week volume/intensity curve (linear, undulating,
+  block) — a small data-driven table, same spirit as `WEEK_PERIODISATION` but per-plan.
+- **P4 — Custom-strategy escape hatch.** wger's `class_name` lets a routine plug in
+  arbitrary progression logic. A `services/progression.py` strategy interface (a
+  `Protocol` + registry) would let non-default schemes (5/3/1-style, RPE-capped linear,
+  etc.) drop in behind the same `suggest_next_targets` call without forking the engine.
+- **P5 — Set-type & rep-unit semantics.** wger models warmup/dropset/myo/AMRAP sets and
+  reps/time/distance units; our conditioning is convention-only (§6.7). Add a set-type
+  enum + rep-unit so AMRAP/time-based work is first-class (also sharpens §9 volume and the
+  runner timer). Larger schema touch — lowest priority.
+
+Note the one place **neither** engine leads: both are short-memory (we read
+`recent_sessions[:2]`; wger checks only the prior iteration's logs). The true multi-week
+trend upgrade is already tracked as §16 limitation #2 → §19.3 (trained regressor), not
+here.

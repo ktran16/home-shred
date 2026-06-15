@@ -493,6 +493,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/nutrition/log/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Food Log History */
+        get: operations["food_log_history_api_nutrition_log_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/nutrition/log/{entry_id}": {
         parameters: {
             query?: never;
@@ -958,6 +975,57 @@ export interface components {
          * @enum {string}
          */
         MovementPattern: "horizontal_push" | "vertical_push" | "horizontal_pull" | "vertical_pull" | "squat" | "hinge" | "core" | "conditioning";
+        /** NutritionHistoryDayOut */
+        NutritionHistoryDayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Logged */
+            logged: boolean;
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: string;
+            /** Carbs G */
+            carbs_g: string;
+            /** Fat G */
+            fat_g: string;
+            /** Target Kcal */
+            target_kcal: number | null;
+            /** Target Protein G */
+            target_protein_g: number | null;
+            /** Target Carbs G */
+            target_carbs_g: number | null;
+            /** Target Fat G */
+            target_fat_g: number | null;
+            /** Kcal Adherent */
+            kcal_adherent: boolean;
+        };
+        /** NutritionHistoryOut */
+        NutritionHistoryOut: {
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Days */
+            days: components["schemas"]["NutritionHistoryDayOut"][];
+            /** Logged Days */
+            logged_days: number;
+            /** Target Days */
+            target_days: number;
+            /** Adherent Days */
+            adherent_days: number;
+            /** Adherence Pct */
+            adherence_pct: number;
+        };
         /** NutritionTargetOut */
         NutritionTargetOut: {
             /** Id */
@@ -2267,6 +2335,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DailyFoodLogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    food_log_history_api_nutrition_log_history_get: {
+        parameters: {
+            query?: {
+                end_date?: string | null;
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NutritionHistoryOut"];
                 };
             };
             /** @description Validation Error */

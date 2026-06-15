@@ -126,6 +126,30 @@ class DailyFoodLogOut(BaseModel):
     remaining_fat_g: Decimal | None
 
 
+class NutritionHistoryDayOut(BaseModel):
+    date: date_type
+    logged: bool
+    kcal: int
+    protein_g: Decimal
+    carbs_g: Decimal
+    fat_g: Decimal
+    target_kcal: int | None
+    target_protein_g: int | None
+    target_carbs_g: int | None
+    target_fat_g: int | None
+    kcal_adherent: bool
+
+
+class NutritionHistoryOut(BaseModel):
+    start_date: date_type
+    end_date: date_type
+    days: list[NutritionHistoryDayOut]
+    logged_days: int
+    target_days: int
+    adherent_days: int
+    adherence_pct: int
+
+
 class AdaptiveTDEEOut(BaseModel):
     """Adaptive TDEE preview (SPEC §17.3 A1). When `enough_data` is false the estimate
     fields are null and `reason` explains why."""
