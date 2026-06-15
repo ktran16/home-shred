@@ -408,6 +408,7 @@ Each endpoint lists request → response Pydantic schema names.
 GET   /api/health                         → {status:"ok"}
 
 GET   /api/exercises                       ?equipment&muscle&category&pattern  → list[ExerciseOut]
+GET   /api/exercises/search                ?q&limit  → list[ExerciseSearchHitOut]  # local semantic-ish search (§17.3 A3)
 GET   /api/exercises/{id}                  → ExerciseOut
 GET   /api/exercises/{id}/history          ?sessions  → ExerciseHistoryOut   # recent completed sessions for this exercise (§16 follow-up)
 PUT   /api/exercises/{id}/preference  ExercisePreferenceIn → ExercisePreferenceOut  # favorite/avoid
@@ -429,12 +430,16 @@ GET   /api/sessions          ?from&to        → list[SessionOut]
 
 GET   /api/progress/volume   ?from&to        → list[VolumePoint]   # {week,muscle,volume}
 GET   /api/progress/strength                 → list[ExerciseStrengthOut]  # per-exercise PRs + e1RM trend (§18)
+GET   /api/progress/prediction               → list[LoadPredictionOut]    # next-session load/readiness forecast (§17.3 A2)
 
 POST  /api/body-metrics      BodyMetricIn    → BodyMetricOut
 GET   /api/body-metrics      ?from&to        → list[BodyMetricOut]
 
 GET   /api/nutrition/targets                 → NutritionTargetOut  # latest
 POST  /api/nutrition/recompute               → NutritionTargetOut  # from current profile
+GET   /api/nutrition/adaptive                → AdaptiveTDEEOut     # adaptive-TDEE preview (§17.3 A1)
+POST  /api/nutrition/adaptive/apply          → NutritionTargetOut  # persist today's adaptive target (§17.3 A1)
+GET   /api/nutrition/barcode/{code}          → FoodFactsOut        # Open Food Facts macro lookup (§17.5 B2b, external)
 ```
 
 Error handling: 404 for missing ids, 422 from Pydantic, 409 if generating a plan with no profile set. Return RFC-7807-ish `{detail}` bodies.
@@ -720,15 +725,27 @@ Cloud LLM is documented as a **fallback**, not the default (§17.7).
   `adaptive_estimate` (unit-tested), `GET /api/nutrition/adaptive` (preview, `enough_data`
   flag) + `POST /api/nutrition/adaptive/apply` (persists today's target), and an Adaptive
   TDEE card on `/nutrition`.
-- **A2 — Per-user load / readiness prediction.** A small regressor (scikit-learn /
-  LightGBM) over logged sets predicting next-session load or a readiness score from
-  RPE + bodyweight (+ optional sleep). **Deferred:** a solo user is data-starved (≈3–5
-  sessions/week → a year+ to train usefully), and §16 R3 (RPE autoregulation) already
-  covers ~90% of the benefit. *Action now: keep logging the features; build the model
-  only once there's a year of history.*
-- **A3 — Local semantic exercise search.** Sentence-transformer embeddings
-  (`all-MiniLM-L6`, ~80 MB) via ONNX Runtime / `fastembed`, CPU, in-process — "find a
-  hamstring exercise like an RDL." Small and optional.
+- **A2 — Per-user load / readiness prediction. ✅ DONE (M4, baseline).** A regressor
+  (scikit-learn / LightGBM) over logged sets predicting next-session load or a readiness
+  score from RPE + bodyweight (+ optional sleep) was the original intent, but a solo user
+  is data-starved (≈3–5 sessions/week → a year+ to train usefully). **Shipped baseline:**
+  `services/prediction.py` reuses the §17.3-A1 least-squares maths over each exercise's
+  per-session strength signal (e1RM for weighted, top-set reps for bodyweight) from
+  `exercise_strength`, projects one session ahead (`forecast_next`), and tempers the
+  verdict with recent RPE (`readiness_from`: progress / hold / insufficient). Guardrails:
+  `MIN_SESSIONS_FOR_PREDICTION = 4`, a heuristic `confidence_for(n)`. No new deps.
+  `GET /api/progress/prediction`; a "Next-session forecast" card on `/progress`
+  (`lib/prediction.ts`). **Swap path:** replace `forecast_next` with a trained regressor
+  once a year of history exists — the API/FE are unchanged. Pure helpers unit-tested.
+- **A3 — Local semantic exercise search. ✅ DONE (M4, lexical baseline).** Embeddings
+  (`all-MiniLM-L6`, ~80 MB via ONNX Runtime / `fastembed`) are the target, but to ship
+  today with zero model downloads on the CPU-only host, `services/exercise_search.py`
+  is a dependency-free **lexical ranker**: weighted token overlap across
+  name / muscles / pattern / category plus a small domain `SYNONYMS` map (so "rdl" →
+  romanian deadlift / hinge / hamstring). `GET /api/exercises/search?q=`; a search box
+  on `/exercises`. **Swap path:** a true embedding backend drops in behind the same
+  `rank_exercises` interface. Pure helpers (`tokenize`/`expand`/`score_doc`/
+  `rank_exercises`) unit-tested.
 
 ### 17.4 Track B1 — Local LLM (Ollama sidecar)
 Run an open model on the homelab box; the backend talks to it over the internal Docker
@@ -753,21 +770,35 @@ network (same pattern as backend↔db). Zero data leaves the host.
 ### 17.5 Track B2 — On-device DL (browser, the most private option)
 Runs in the browser **on the user's phone** — video never reaches the server, so it's
 unconstrained by the CPU-only host and the strongest privacy story.
-- **B2a — Pose-based rep counting + form/ROM check.** MediaPipe Pose / MoveNet /
-  BlazePose via TensorFlow.js / MediaPipe Tasks (Web), wired into
-  `/workout/[planDayId]`: auto-count reps, flag squat depth / lockout / tempo. The most
-  genuinely "DL" feature and a natural fit for the phone-in-the-gym use case.
-- **B2b — Food logging without a vision model.** Local food classifiers are
-  inaccurate; the reliable local path is **barcode scanning** (ZXing / QuaggaJS in the
-  browser) + an offline **Open Food Facts** dump. Not ML, but solves the real problem
-  on-device.
+- **B2a — Pose-based rep counting + form/ROM check. ✅ DONE (M3).** MediaPipe Pose
+  (Tasks Vision, `pose_landmarker_lite`) loaded from a CDN **at runtime** (kept out of
+  the bundle so the build needs no model and the CPU-only host never touches video),
+  wired into `/workout/[planDayId]` per set. Pure, unit-tested core: `lib/pose.ts`
+  (joint-angle geometry + per-pattern `PATTERN_TRACK` joint/threshold config) and
+  `lib/rep-counter.ts` (a hysteresis state machine that counts on the contraction→lockout
+  transition and flags partial ROM against `targetBottom`). `components/pose-rep-counter.tsx`
+  runs the webcam loop and feeds counted reps into the set's rep field. Single-joint
+  movements only (squat/hinge/push/pull); core & conditioning are untracked. Degrades
+  gracefully when the camera/model is unavailable.
+- **B2b — Food logging without a vision model. ✅ DONE (M4, lookup).** **Barcode
+  scanning** via the browser-native `BarcodeDetector` API (no ML, no extra deps;
+  `components/barcode-scanner.tsx`, manual digit-entry fallback) + an **Open Food Facts**
+  lookup: `services/food_lookup.py` (`parse_off_product` pure/unit-tested mapper,
+  `lookup_barcode` httpx fetch), `GET /api/nutrition/barcode/{code}`. Returns per-100 g
+  macros scaled to a serving on the FE (`lib/food.ts`). **Scope:** this is the *lookup*
+  building block; persisting a **food log** (needed for true intake-based adaptive TDEE,
+  §17.3 A1) is the next step. **Note:** an OFF lookup leaves the LAN, so it is opt-in /
+  external (§17.7); an offline OFF dump can replace `lookup_barcode` behind the same
+  interface for a fully local path.
 
 ### 17.6 Recommended phasing
 - **M1 — A1 Adaptive TDEE. ✅ DONE.** (light, local, uses existing data, immediate value).
 - **M2 — B1 Ollama sidecar** → B1a food logging, then B1b substitution (rule-validated).
-- **M3 — B2a pose rep-counting / form check** (browser, fully on-device).
-- **M4 — A2 prediction model** once a year of logs exists; **A3 / B2b** as optional
-  polish.
+  **Still pending** — the only AI/ML milestone not yet built.
+- **M3 — B2a pose rep-counting / form check. ✅ DONE** (browser, fully on-device).
+- **M4 — A2 prediction model + A3 search + B2b barcode. ✅ DONE** as baselines (A2 is a
+  trend baseline pending a year of data for a trained regressor; A3 is lexical pending
+  embeddings; B2b is lookup pending a food-log table).
 Each milestone ships behind a feature flag; any feature that leaves the LAN ships behind
 an explicit opt-in consent toggle.
 
@@ -823,3 +854,68 @@ added.
   last session is a new best (weighted by e1RM, bodyweight by reps); incomplete sessions
   excluded; empty → `[]`.
 - FE `lib/strength.ts`: chart-series selection (e1RM vs reps) + PR-label formatting.
+
+---
+
+## 19. What's Next — Roadmap & Brainstorm
+
+> State as of this revision: MVP + §16 (R1–R7) + §17 M1/M3/M4 + §18 all shipped.
+> 125 backend tests, 65 FE tests. The single remaining AI/ML milestone is **M2
+> (Ollama sidecar)**. Below is the recommended ordering, grounded in what each item
+> unblocks rather than novelty.
+
+### 19.1 The keystone gap: a **food log** (do this first)
+Three shipped features all carry the same "documented simplification" because there is
+no place to record what was actually eaten:
+- §17.3 A1 adaptive TDEE *assumes intake = the target in effect*.
+- §17.5 B2b barcode lookup *returns* macros but cannot *log* them.
+- §17.4 B1a (LLM food parsing, M2) has nowhere to write its output.
+
+**Proposal — `food_log` table** (`id, date, name, grams, kcal, protein_g, carbs_g,
+fat_g, source enum{manual,barcode,llm}, barcode?`). New service `services/food_log.py`
+(daily totals, remaining-vs-target), `POST/GET/DELETE /api/nutrition/log`, a daily
+food-log card on `/nutrition` fed by the existing barcode scanner + a manual add form.
+Then make A1 use **measured intake** when a day has logged food and fall back to the
+target proxy otherwise (one-line change in `adaptive_estimate`'s `intake_kcals`). This
+is the highest-leverage next build: small, local, no new heavy deps, and it upgrades
+three existing features at once.
+
+### 19.2 M2 — Ollama sidecar (the last AI/ML milestone)
+- Add an `ollama` service to `docker-compose.prod.yml`; backend reads `OLLAMA_URL`.
+- One `services/assistant.py` interface so local-vs-cloud (§17.7) is a config switch.
+- **B1a NL food logging** ("2 eggs and oatmeal" → grams P/C/F) using Ollama
+  `format:"json"`, validated against a Pydantic schema before writing to the §19.1
+  food log. Highest daily utility, lowest risk — build it first.
+- **B1b LLM substitution** ("shoulder hurts, swap overhead press") → suggestion is
+  re-validated by the existing equipment/pattern/level generator rules before swapping.
+- Ships behind a feature flag; degrade to the current rule-only behaviour if the
+  sidecar is down.
+
+### 19.3 Maturing the M4 baselines (once data justifies it)
+- **A2 → trained regressor.** Keep logging RPE/sleep/bodyweight; once ~6–12 months of
+  history exists, replace `forecast_next` with scikit-learn/LightGBM behind the same
+  interface. Add an optional **sleep** input to readiness/A2 (currently energy/soreness/
+  sleep are runner-only and not persisted — persist them to feed the model).
+- **A3 → embeddings.** Swap the lexical ranker for `all-MiniLM-L6` via `fastembed`/ONNX
+  behind `rank_exercises` if lexical recall proves insufficient in practice.
+- **Pose (B2a) follow-ups.** Auto-log a set when the camera detects the target rep
+  count; persist a per-set form/ROM score (needs a `set_logs.form_score` column);
+  extend beyond single-joint movements; add tempo/eccentric-time cues.
+
+### 19.4 Product gaps independent of AI/ML
+- **Operations (SPEC §14.7):** `pg_dump` backup cron; set a strong prod DB password
+  (still the example placeholder); finish the real-host deploy (port 3000 free there).
+- **Phone-in-the-gym polish:** PWA manifest + service worker for offline set logging
+  and "add to home screen"; the runner is the one screen that must work with flaky gym
+  wifi.
+- **Plan lifecycle:** a "deload week" / mesocycle-rollover prompt; archiving old plans;
+  editing a generated plan (swap/reorder before starting).
+- **Light auth:** a single shared passcode or reverse-proxy basic-auth for the LAN —
+  currently anyone on the network can hit the API (acceptable for now, flagged here).
+
+### 19.5 Suggested order
+1. **Food log (§19.1)** — unblocks A1/B2b/B1a, small and local.
+2. **M2 B1a** food logging on top of it, then **B1b** substitution.
+3. **Ops hardening** (backups, password, deploy) — do before relying on it daily.
+4. **PWA/offline** for the runner.
+5. **A2/A3/pose maturation** — only when accumulated data makes the upgrade pay off.

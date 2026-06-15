@@ -4,6 +4,17 @@ A self-hosted, rule-based personal-trainer web app for home calisthenics + dumbb
 training (muscle gain + fat loss). FastAPI + PostgreSQL backend, Next.js frontend.
 See `SPEC.md` for the full design and `CLAUDE.md` for coding conventions.
 
+## Local-first smart features (SPEC §17)
+All run on-device or in-process — no cloud, CPU-only friendly:
+- **Camera rep counting + form check** (`/workout`): MediaPipe Pose in the browser
+  auto-counts reps and flags partial range of motion. Video never leaves the phone.
+- **Next-session forecast** (`/progress`): per-exercise trend-based load / readiness.
+- **Adaptive TDEE** (`/nutrition`): real maintenance calories from your bodyweight trend.
+- **Exercise search** (`/exercises`): "a hamstring exercise like an RDL".
+- **Barcode food lookup** (`/nutrition`): scan a barcode → macros (via Open Food Facts).
+
+What's next is brainstormed in `SPEC.md §19` (food log → Ollama sidecar → ops/PWA).
+
 ## Run it (dev)
 
 ```bash
