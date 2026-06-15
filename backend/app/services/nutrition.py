@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import ACTIVITY_FACTORS, ActivityLevel, Sex
 from app.models import BodyMetric, NutritionTarget
+from app.services.food_log import daily_intake_kcals
 from app.services.profile import get_profile
 
 # rationale (SPEC §8): shred = 20% deficit; protein 2.0 g/kg to preserve muscle in a
@@ -27,9 +28,8 @@ KCAL_PER_G_FAT = 9
 # rationale (SPEC §17.3 A1): adaptive TDEE. ~7700 kcal ≈ energy in 1 kg of body-mass
 # change, so observed weight trend reveals real maintenance:
 #   estimated_TDEE = mean_intake − (kg/day trend × 7700)
-# Intake is assumed to equal the target in effect (no food log yet — documented
-# simplification, like §9's bodyweight proxy). Guardrails keep noisy data from swinging
-# the estimate wildly.
+# Intake uses measured food-log kcal for logged days and falls back to the target in
+# effect for unlogged days. Guardrails keep noisy data from swinging the estimate wildly.
 KCAL_PER_KG = 7700
 ADAPTIVE_WINDOW_DAYS = 28  # how far back to look for metrics/targets
 ADAPTIVE_MIN_SAMPLES = 4  # need ≥4 weigh-ins
@@ -199,16 +199,21 @@ async def adaptive_targets(db: AsyncSession) -> AdaptiveEstimate | None:
             select(BodyMetric).where(BodyMetric.date >= since).order_by(BodyMetric.date)
         )
     )
-    targets = list(await db.scalars(select(NutritionTarget).where(NutritionTarget.date >= since)))
-
     weight_points = [(m.date, float(m.weight_kg)) for m in metrics]
     latest_weight = weight_points[-1][1] if weight_points else float(profile.weight_kg)
+    today = date.today()
+    intakes = await daily_intake_kcals(
+        db,
+        since=since,
+        until=today,
+        fallback_target_kcal=static.target_kcal,
+    )
 
     return adaptive_estimate(
         static_tdee_kcal=static.tdee_kcal,
         static_target_kcal=static.target_kcal,
         weight_points=weight_points,
-        intake_kcals=[t.target_kcal for t in targets],
+        intake_kcals=intakes,
         latest_weight_kg=latest_weight,
     )
 

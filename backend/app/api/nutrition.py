@@ -1,14 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import date as date_type
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from app.schemas.nutrition import (
     AdaptiveTDEEOut,
+    DailyFoodLogOut,
     FoodFactsOut,
+    FoodLogCopyDayIn,
+    FoodLogIn,
+    FoodLogOut,
+    FoodLogRecentOut,
+    FoodLogTotalsOut,
     NutritionTargetOut,
     SuggestedTargets,
 )
-from app.services import food_lookup
+from app.services import food_log, food_lookup
 from app.services import nutrition as svc
 from app.services.nutrition import ADAPTIVE_MIN_DAYS_SPAN, ADAPTIVE_MIN_SAMPLES
 from app.services.profile import get_profile
@@ -30,6 +38,62 @@ async def recompute(db: AsyncSession = Depends(get_db)) -> NutritionTargetOut:
     if target is None:
         raise HTTPException(status_code=409, detail="Set a profile before computing nutrition")
     return NutritionTargetOut.model_validate(target)
+
+
+@router.get("/log", response_model=DailyFoodLogOut)
+async def get_food_log(
+    date: date_type | None = None, db: AsyncSession = Depends(get_db)
+) -> DailyFoodLogOut:
+    return _daily_log_out(await food_log.daily_log(db, date))
+
+
+@router.post("/log", response_model=DailyFoodLogOut, status_code=201)
+async def post_food_log(data: FoodLogIn, db: AsyncSession = Depends(get_db)) -> DailyFoodLogOut:
+    entry = await food_log.create_entry(db, data)
+    return _daily_log_out(await food_log.daily_log(db, entry.date))
+
+
+@router.get("/log/recent", response_model=list[FoodLogRecentOut])
+async def recent_foods(
+    limit: int = Query(default=8, ge=1, le=30),
+    db: AsyncSession = Depends(get_db),
+) -> list[FoodLogRecentOut]:
+    foods = await food_log.recent_foods(db, limit=limit)
+    return [
+        FoodLogRecentOut(
+            name=entry.name,
+            grams=entry.grams,
+            kcal=entry.kcal,
+            protein_g=entry.protein_g,
+            carbs_g=entry.carbs_g,
+            fat_g=entry.fat_g,
+            source=entry.source,
+            barcode=entry.barcode,
+            last_logged_on=entry.date,
+        )
+        for entry in foods
+    ]
+
+
+@router.post("/log/copy-day", response_model=DailyFoodLogOut, status_code=201)
+async def copy_food_log_day(
+    data: FoodLogCopyDayIn,
+    db: AsyncSession = Depends(get_db),
+) -> DailyFoodLogOut:
+    try:
+        await food_log.copy_day(db, from_date=data.from_date, to_date=data.to_date)
+    except food_log.FoodLogSourceDayEmptyError as exc:
+        raise HTTPException(status_code=404, detail="No food logged on source day") from exc
+    return _daily_log_out(await food_log.daily_log(db, data.to_date))
+
+
+@router.delete("/log/{entry_id}", response_model=DailyFoodLogOut)
+async def delete_food_log(entry_id: int, db: AsyncSession = Depends(get_db)) -> DailyFoodLogOut:
+    try:
+        log_date = await food_log.delete_entry(db, entry_id)
+    except food_log.FoodLogNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Food log entry not found") from exc
+    return _daily_log_out(await food_log.daily_log(db, log_date))
 
 
 @router.get("/adaptive", response_model=AdaptiveTDEEOut)
@@ -85,3 +149,21 @@ async def apply_adaptive(db: AsyncSession = Depends(get_db)) -> NutritionTargetO
     if target is None:
         raise HTTPException(status_code=409, detail="Not enough bodyweight history to adapt yet")
     return NutritionTargetOut.model_validate(target)
+
+
+def _daily_log_out(log: food_log.DailyFoodLog) -> DailyFoodLogOut:
+    return DailyFoodLogOut(
+        date=log.date,
+        entries=[FoodLogOut.model_validate(entry) for entry in log.entries],
+        totals=FoodLogTotalsOut(
+            kcal=log.totals.kcal,
+            protein_g=log.totals.protein_g,
+            carbs_g=log.totals.carbs_g,
+            fat_g=log.totals.fat_g,
+        ),
+        target=NutritionTargetOut.model_validate(log.target) if log.target is not None else None,
+        remaining_kcal=log.remaining_kcal,
+        remaining_protein_g=log.remaining_protein_g,
+        remaining_carbs_g=log.remaining_carbs_g,
+        remaining_fat_g=log.remaining_fat_g,
+    )

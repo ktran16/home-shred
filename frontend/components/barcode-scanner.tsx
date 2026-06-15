@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { Button, Card, Input } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, type FoodLogIn } from "@/lib/api";
 import { foodTitle, isValidBarcode, macrosForGrams } from "@/lib/food";
 
 // Native on-device barcode scanning (SPEC §17.5 B2b). No ML model, no extra deps;
@@ -18,7 +18,13 @@ function getBarcodeDetector(): BarcodeDetectorCtor | null {
   return (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector ?? null;
 }
 
-export function BarcodeScanner() {
+export function BarcodeScanner({
+  onLog,
+  logging = false,
+}: {
+  onLog?: (entry: FoodLogIn) => void;
+  logging?: boolean;
+}) {
   const [code, setCode] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [grams, setGrams] = useState("100");
@@ -46,6 +52,13 @@ export function BarcodeScanner() {
   const food = lookup.data ?? null;
   const gramsNum = Number(grams) || 0;
   const macros = food ? macrosForGrams(food, gramsNum) : null;
+  const canLog =
+    !!food &&
+    gramsNum > 0 &&
+    macros?.kcal != null &&
+    macros.protein != null &&
+    macros.carbs != null &&
+    macros.fat != null;
 
   return (
     <Card className="flex flex-col gap-3">
@@ -103,6 +116,26 @@ export function BarcodeScanner() {
                 <Macro label="C" value={macros?.carbs} unit="g" />
                 <Macro label="F" value={macros?.fat} unit="g" />
               </div>
+              {onLog && (
+                <Button
+                  disabled={!canLog || logging}
+                  onClick={() => {
+                    if (!food || !canLog) return;
+                    onLog({
+                      name: foodTitle(food),
+                      grams: Math.round(gramsNum * 10) / 10,
+                      kcal: macros.kcal!,
+                      protein_g: macros.protein!,
+                      carbs_g: macros.carbs!,
+                      fat_g: macros.fat!,
+                      source: "barcode",
+                      barcode: food.code,
+                    });
+                  }}
+                >
+                  {logging ? "Adding..." : "Add to log"}
+                </Button>
+              )}
             </div>
           )}
         </div>

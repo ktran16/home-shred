@@ -2,10 +2,20 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
 import { BarcodeScanner } from "@/components/barcode-scanner";
-import { Button, Card } from "@/components/ui";
-import { api } from "@/lib/api";
+import { Button, Card, Input, Label } from "@/components/ui";
+import { api, type DailyFoodLogOut, type FoodLogIn, type FoodLogRecentOut } from "@/lib/api";
+import {
+  EMPTY_FOOD_DRAFT,
+  draftToFoodLog,
+  macroPercent,
+  recentFoodToLog,
+  remainingLabel,
+  todayIsoDate,
+  type ManualFoodDraft,
+} from "@/lib/food-log";
 
 function MacroCard({ label, grams, kcal, color }: { label: string; grams: number; kcal: number; color: string }) {
   return (
@@ -19,6 +29,7 @@ function MacroCard({ label, grams, kcal, color }: { label: string; grams: number
 
 export default function NutritionPage() {
   const qc = useQueryClient();
+  const [logDate, setLogDate] = useState(() => todayIsoDate());
   const { data, isLoading } = useQuery({
     queryKey: ["nutrition"],
     queryFn: async () => {
@@ -43,6 +54,62 @@ export default function NutritionPage() {
       if (response.status === 404) return null;
       return data ?? null;
     },
+  });
+
+  const foodLog = useQuery({
+    queryKey: ["food-log", logDate],
+    enabled: !!data,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/nutrition/log", {
+        params: { query: { date: logDate } },
+      });
+      return data ?? null;
+    },
+  });
+
+  const recentFoods = useQuery({
+    queryKey: ["food-recent"],
+    enabled: !!data,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/nutrition/log/recent", {
+        params: { query: { limit: 8 } },
+      });
+      return data ?? [];
+    },
+  });
+
+  const invalidateFoodLog = () => {
+    qc.invalidateQueries({ queryKey: ["food-log", logDate] });
+    qc.invalidateQueries({ queryKey: ["food-recent"] });
+    qc.invalidateQueries({ queryKey: ["nutrition-adaptive"] });
+  };
+
+  const addFood = useMutation({
+    mutationFn: async (body: FoodLogIn) => {
+      const { error } = await api.POST("/api/nutrition/log", { body });
+      if (error) throw new Error("Could not add food");
+    },
+    onSuccess: invalidateFoodLog,
+  });
+
+  const copyDay = useMutation({
+    mutationFn: async (fromDate: string) => {
+      const { error } = await api.POST("/api/nutrition/log/copy-day", {
+        body: { from_date: fromDate, to_date: logDate },
+      });
+      if (error) throw new Error("Nothing logged on that day to copy");
+    },
+    onSuccess: invalidateFoodLog,
+  });
+
+  const deleteFood = useMutation({
+    mutationFn: async (entryId: number) => {
+      const { error } = await api.DELETE("/api/nutrition/log/{entry_id}", {
+        params: { path: { entry_id: entryId } },
+      });
+      if (error) throw new Error("Could not delete food");
+    },
+    onSuccess: invalidateFoodLog,
   });
 
   const applyAdaptive = useMutation({
@@ -135,8 +202,8 @@ export default function NutritionPage() {
                 </p>
               )}
               <p className="text-[11px] text-zinc-400">
-                Assumes you ate near your target ({adaptive.data.assumed_intake_kcal} kcal); no food
-                log yet.
+                Uses logged food when present, otherwise assumes your target (
+                {adaptive.data.assumed_intake_kcal} kcal average).
               </p>
               <Button onClick={() => applyAdaptive.mutate()} disabled={applyAdaptive.isPending}>
                 {applyAdaptive.isPending ? "Applying…" : "Apply adaptive target"}
@@ -146,7 +213,338 @@ export default function NutritionPage() {
         </Card>
       )}
 
-      <BarcodeScanner />
+      <FoodLogCard
+        log={foodLog.data ?? null}
+        date={logDate}
+        loading={foodLog.isLoading}
+        recent={recentFoods.data ?? []}
+        onDateChange={setLogDate}
+        onAdd={(entry) => addFood.mutate({ ...entry, date: entry.date ?? logDate })}
+        onDelete={(id) => deleteFood.mutate(id)}
+        onCopyDay={(fromDate) => copyDay.mutate(fromDate)}
+        busy={addFood.isPending || deleteFood.isPending || copyDay.isPending}
+        error={addFood.error?.message ?? deleteFood.error?.message ?? copyDay.error?.message}
+      />
+
+      <BarcodeScanner
+        logging={addFood.isPending}
+        onLog={(entry) => addFood.mutate({ ...entry, date: logDate })}
+      />
+    </div>
+  );
+}
+
+function FoodLogCard({
+  log,
+  date,
+  loading,
+  recent,
+  onDateChange,
+  onAdd,
+  onDelete,
+  onCopyDay,
+  busy,
+  error,
+}: {
+  log: DailyFoodLogOut | null;
+  date: string;
+  loading: boolean;
+  recent: FoodLogRecentOut[];
+  onDateChange: (date: string) => void;
+  onAdd: (entry: FoodLogIn) => void;
+  onDelete: (id: number) => void;
+  onCopyDay: (fromDate: string) => void;
+  busy: boolean;
+  error?: string;
+}) {
+  return (
+    <Card className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="font-semibold">Food log</h2>
+          <p className="text-sm text-zinc-500">
+            Logged days feed adaptive TDEE; unlogged days still use your target.
+          </p>
+        </div>
+        <Input
+          type="date"
+          className="sm:w-44"
+          value={date}
+          onChange={(event) => onDateChange(event.target.value || todayIsoDate())}
+        />
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-zinc-500">Loading food log...</p>
+      ) : (
+        <>
+          <FoodTotals log={log} />
+          <FoodEntries entries={log?.entries ?? []} busy={busy} onDelete={onDelete} />
+        </>
+      )}
+
+      <QuickAddRecent
+        recent={recent}
+        busy={busy}
+        onAdd={(food) => onAdd(recentFoodToLog(food, date))}
+      />
+      <CopyDay date={date} busy={busy} onCopyDay={onCopyDay} />
+      <ManualFoodForm date={date} busy={busy} onAdd={onAdd} />
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </Card>
+  );
+}
+
+function QuickAddRecent({
+  recent,
+  busy,
+  onAdd,
+}: {
+  recent: FoodLogRecentOut[];
+  busy: boolean;
+  onAdd: (food: FoodLogRecentOut) => void;
+}) {
+  if (recent.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Quick add</Label>
+      <div className="flex flex-wrap gap-2">
+        {recent.map((food, index) => (
+          <Button
+            key={`${food.name}-${food.last_logged_on}-${index}`}
+            variant="secondary"
+            className="h-auto min-h-0 flex-col items-start gap-0.5 px-3 py-2 text-left"
+            disabled={busy}
+            onClick={() => onAdd(food)}
+            title={`P ${food.protein_g}g · C ${food.carbs_g}g · F ${food.fat_g}g`}
+          >
+            <span className="max-w-[10rem] truncate text-sm font-medium">{food.name}</span>
+            <span className="text-[10px] font-normal text-zinc-500">
+              {food.grams}g · {food.kcal} kcal
+            </span>
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CopyDay({
+  date,
+  busy,
+  onCopyDay,
+}: {
+  date: string;
+  busy: boolean;
+  onCopyDay: (fromDate: string) => void;
+}) {
+  const [fromDate, setFromDate] = useState(() => yesterdayIso(date));
+  return (
+    <div className="flex flex-col gap-2 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+      <Label>Copy a day</Label>
+      <div className="flex flex-wrap items-end gap-2">
+        <Input
+          type="date"
+          className="w-44"
+          value={fromDate}
+          max={date}
+          onChange={(event) => setFromDate(event.target.value)}
+        />
+        <Button
+          variant="secondary"
+          disabled={busy || !fromDate || fromDate === date}
+          onClick={() => onCopyDay(fromDate)}
+        >
+          {busy ? "Copying…" : "Copy into this day"}
+        </Button>
+      </div>
+      <p className="text-xs text-zinc-500">Clones every entry from the chosen day into {date}.</p>
+    </div>
+  );
+}
+
+function yesterdayIso(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() - 1);
+  return todayIsoDate(d);
+}
+
+function FoodTotals({ log }: { log: DailyFoodLogOut | null }) {
+  const target = log?.target;
+  const totals = log?.totals;
+  return (
+    <div className="grid gap-2 sm:grid-cols-4">
+      <ProgressTile
+        label="Calories"
+        total={totals?.kcal ?? 0}
+        target={target?.target_kcal}
+        remaining={remainingLabel(log?.remaining_kcal)}
+        percent={macroPercent(totals?.kcal ?? 0, target?.target_kcal)}
+      />
+      <ProgressTile
+        label="Protein"
+        total={Number(totals?.protein_g ?? 0)}
+        target={target?.protein_g}
+        unit="g"
+        remaining={remainingLabel(log?.remaining_protein_g, "g")}
+        percent={macroPercent(totals?.protein_g ?? 0, target?.protein_g)}
+      />
+      <ProgressTile
+        label="Carbs"
+        total={Number(totals?.carbs_g ?? 0)}
+        target={target?.carbs_g}
+        unit="g"
+        remaining={remainingLabel(log?.remaining_carbs_g, "g")}
+        percent={macroPercent(totals?.carbs_g ?? 0, target?.carbs_g)}
+      />
+      <ProgressTile
+        label="Fat"
+        total={Number(totals?.fat_g ?? 0)}
+        target={target?.fat_g}
+        unit="g"
+        remaining={remainingLabel(log?.remaining_fat_g, "g")}
+        percent={macroPercent(totals?.fat_g ?? 0, target?.fat_g)}
+      />
+    </div>
+  );
+}
+
+function ProgressTile({
+  label,
+  total,
+  target,
+  unit = "",
+  remaining,
+  percent,
+}: {
+  label: string;
+  total: number;
+  target?: number | string | null;
+  unit?: string;
+  remaining: string;
+  percent: number;
+}) {
+  return (
+    <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-zinc-500">{label}</span>
+        <span className="text-xs text-zinc-400">{percent}%</span>
+      </div>
+      <div className="mt-1 text-xl font-bold tabular-nums">
+        {Math.round(total * 10) / 10}
+        {unit}
+        {target != null && (
+          <span className="text-xs font-normal text-zinc-400"> / {target}{unit}</span>
+        )}
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${percent}%` }} />
+      </div>
+      <div className="mt-1 text-xs text-zinc-500">{remaining}</div>
+    </div>
+  );
+}
+
+function FoodEntries({
+  entries,
+  busy,
+  onDelete,
+}: {
+  entries: DailyFoodLogOut["entries"];
+  busy: boolean;
+  onDelete: (id: number) => void;
+}) {
+  if (entries.length === 0) {
+    return <p className="rounded-lg bg-zinc-50 p-3 text-sm text-zinc-500 dark:bg-zinc-950">No food logged for this day.</p>;
+  }
+
+  return (
+    <div className="flex flex-col divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+      {entries.map((entry) => (
+        <div key={entry.id} className="flex items-center justify-between gap-3 p-3">
+          <div className="min-w-0">
+            <div className="truncate font-medium">{entry.name}</div>
+            <div className="text-xs text-zinc-500">
+              {entry.grams}g · {entry.kcal} kcal · P {entry.protein_g}g · C {entry.carbs_g}g · F{" "}
+              {entry.fat_g}g
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            className="h-9 min-h-0 shrink-0 px-3 text-sm"
+            disabled={busy}
+            onClick={() => onDelete(entry.id)}
+          >
+            Delete
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ManualFoodForm({
+  date,
+  busy,
+  onAdd,
+}: {
+  date: string;
+  busy: boolean;
+  onAdd: (entry: FoodLogIn) => void;
+}) {
+  const [draft, setDraft] = useState<ManualFoodDraft>(EMPTY_FOOD_DRAFT);
+  const entry = draftToFoodLog(draft, date);
+
+  const set = (key: keyof ManualFoodDraft, value: string) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  return (
+    <form
+      className="grid gap-3 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!entry) return;
+        onAdd(entry);
+        setDraft(EMPTY_FOOD_DRAFT);
+      }}
+    >
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_repeat(5,minmax(0,1fr))]">
+        <div>
+          <Label>Name</Label>
+          <Input value={draft.name} onChange={(event) => set("name", event.target.value)} />
+        </div>
+        <NumberInput label="Grams" value={draft.grams} onChange={(value) => set("grams", value)} />
+        <NumberInput label="Kcal" value={draft.kcal} onChange={(value) => set("kcal", value)} />
+        <NumberInput label="Protein" value={draft.protein_g} onChange={(value) => set("protein_g", value)} />
+        <NumberInput label="Carbs" value={draft.carbs_g} onChange={(value) => set("carbs_g", value)} />
+        <NumberInput label="Fat" value={draft.fat_g} onChange={(value) => set("fat_g", value)} />
+      </div>
+      <Button disabled={!entry || busy}>{busy ? "Adding..." : "Add food"}</Button>
+    </form>
+  );
+}
+
+function NumberInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <Input
+        type="number"
+        min="0"
+        step="0.1"
+        inputMode="decimal"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </div>
   );
 }

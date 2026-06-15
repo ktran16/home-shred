@@ -74,10 +74,10 @@ export default function ProfilePage() {
     onSuccess: () => invalidateProfileState(qc),
   });
   const create = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (name: string) => {
       const base = data
-        ? profileToInput({ ...data, name: nextProfileName(profiles.data ?? []) })
-        : { ...EMPTY, name: nextProfileName(profiles.data ?? []) };
+        ? profileToInput({ ...data, name })
+        : { ...EMPTY, name };
       const { error } = await api.POST("/api/profile", { body: base });
       if (error) throw new Error("Could not create profile");
     },
@@ -110,7 +110,7 @@ export default function ProfilePage() {
             isLoading={profiles.isLoading}
             activeId={data?.id ?? null}
             onActivate={(id) => activate.mutate(id)}
-            onCreate={() => create.mutate()}
+            onCreate={(name) => create.mutate(name)}
             onDelete={(id) => remove.mutate(id)}
             busy={activate.isPending || create.isPending || remove.isPending}
             error={activate.error?.message ?? create.error?.message ?? remove.error?.message}
@@ -136,11 +136,14 @@ function ProfileSwitcher({
   isLoading: boolean;
   activeId: number | null;
   onActivate: (id: number) => void;
-  onCreate: () => void;
+  onCreate: (name: string) => void;
   onDelete: (id: number) => void;
   busy: boolean;
   error?: string;
 }) {
+  const [newName, setNewName] = useState("");
+  const candidateName = newName.trim();
+
   if (isLoading) {
     return <p className="text-sm text-zinc-500">Loading profiles...</p>;
   }
@@ -154,9 +157,29 @@ function ProfileSwitcher({
             Switch who the trainer is currently calibrated for.
           </p>
         </div>
-        <Button className="h-10 min-h-0 px-3 text-sm" onClick={onCreate} disabled={busy}>
-          New
-        </Button>
+        <form
+          className="flex min-w-0 gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!candidateName) return;
+            onCreate(candidateName);
+            setNewName("");
+          }}
+        >
+          <Input
+            className="h-10 min-h-0 w-36 text-sm sm:w-44"
+            placeholder="New profile name"
+            value={newName}
+            maxLength={80}
+            onChange={(event) => setNewName(event.target.value)}
+          />
+          <Button
+            className="h-10 min-h-0 px-3 text-sm"
+            disabled={busy || !candidateName}
+          >
+            New
+          </Button>
+        </form>
       </div>
       {profiles.length === 0 ? (
         <p className="text-sm text-zinc-500">Create a profile to get started.</p>
@@ -444,10 +467,6 @@ function invalidateProfileState(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ["nutrition-adaptive"] });
   qc.invalidateQueries({ queryKey: ["plans"] });
   qc.invalidateQueries({ queryKey: ["plan-coverage"] });
-}
-
-function nextProfileName(profiles: ProfileOut[]): string {
-  return `Profile ${profiles.length + 1}`;
 }
 
 function FormSection({ title, children }: { title: string; children: React.ReactNode }) {

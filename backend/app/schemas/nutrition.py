@@ -1,6 +1,10 @@
 from datetime import date as date_type
+from datetime import datetime
+from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.enums import FoodLogSource
 
 
 class NutritionTargetOut(BaseModel):
@@ -35,6 +39,91 @@ class FoodFactsOut(BaseModel):
     protein_per_100g: float | None
     carbs_per_100g: float | None
     fat_per_100g: float | None
+
+
+class FoodLogIn(BaseModel):
+    date: date_type | None = None
+    name: str = Field(min_length=1, max_length=160)
+    grams: Decimal = Field(gt=0, le=10000, decimal_places=1)
+    kcal: int = Field(ge=0, le=20000)
+    protein_g: Decimal = Field(ge=0, le=2000, decimal_places=1)
+    carbs_g: Decimal = Field(ge=0, le=2000, decimal_places=1)
+    fat_g: Decimal = Field(ge=0, le=2000, decimal_places=1)
+    source: FoodLogSource = FoodLogSource.MANUAL
+    barcode: str | None = Field(default=None, max_length=32)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Name cannot be blank")
+        return stripped
+
+    @field_validator("barcode")
+    @classmethod
+    def strip_barcode(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class FoodLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    date: date_type
+    name: str
+    grams: Decimal
+    kcal: int
+    protein_g: Decimal
+    carbs_g: Decimal
+    fat_g: Decimal
+    source: FoodLogSource
+    barcode: str | None
+    created_at: datetime
+
+
+class FoodLogRecentOut(BaseModel):
+    name: str
+    grams: Decimal
+    kcal: int
+    protein_g: Decimal
+    carbs_g: Decimal
+    fat_g: Decimal
+    source: FoodLogSource
+    barcode: str | None
+    last_logged_on: date_type
+
+
+class FoodLogCopyDayIn(BaseModel):
+    from_date: date_type
+    to_date: date_type
+
+    @model_validator(mode="after")
+    def dates_must_differ(self) -> "FoodLogCopyDayIn":
+        if self.from_date == self.to_date:
+            raise ValueError("from_date and to_date must differ")
+        return self
+
+
+class FoodLogTotalsOut(BaseModel):
+    kcal: int
+    protein_g: Decimal
+    carbs_g: Decimal
+    fat_g: Decimal
+
+
+class DailyFoodLogOut(BaseModel):
+    date: date_type
+    entries: list[FoodLogOut]
+    totals: FoodLogTotalsOut
+    target: NutritionTargetOut | None
+    remaining_kcal: int | None
+    remaining_protein_g: Decimal | None
+    remaining_carbs_g: Decimal | None
+    remaining_fat_g: Decimal | None
 
 
 class AdaptiveTDEEOut(BaseModel):

@@ -1350,6 +1350,227 @@
         }
       }
     },
+    "/api/nutrition/log": {
+      "get": {
+        "tags": [
+          "nutrition"
+        ],
+        "summary": "Get Food Log",
+        "operationId": "get_food_log_api_nutrition_log_get",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyFoodLogOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "nutrition"
+        ],
+        "summary": "Post Food Log",
+        "operationId": "post_food_log_api_nutrition_log_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodLogIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyFoodLogOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nutrition/log/recent": {
+      "get": {
+        "tags": [
+          "nutrition"
+        ],
+        "summary": "Recent Foods",
+        "operationId": "recent_foods_api_nutrition_log_recent_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 1,
+              "default": 8,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FoodLogRecentOut"
+                  },
+                  "title": "Response Recent Foods Api Nutrition Log Recent Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nutrition/log/copy-day": {
+      "post": {
+        "tags": [
+          "nutrition"
+        ],
+        "summary": "Copy Food Log Day",
+        "operationId": "copy_food_log_day_api_nutrition_log_copy_day_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodLogCopyDayIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyFoodLogOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nutrition/log/{entry_id}": {
+      "delete": {
+        "tags": [
+          "nutrition"
+        ],
+        "summary": "Delete Food Log",
+        "operationId": "delete_food_log_api_nutrition_log__entry_id__delete",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyFoodLogOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/nutrition/adaptive": {
       "get": {
         "tags": [
@@ -1692,6 +1913,94 @@
           "met"
         ],
         "title": "CoveragePointOut"
+      },
+      "DailyFoodLogOut": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/FoodLogOut"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/FoodLogTotalsOut"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NutritionTargetOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remaining_kcal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Kcal"
+          },
+          "remaining_protein_g": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Protein G"
+          },
+          "remaining_carbs_g": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Carbs G"
+          },
+          "remaining_fat_g": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Fat G"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "entries",
+          "totals",
+          "target",
+          "remaining_kcal",
+          "remaining_protein_g",
+          "remaining_carbs_g",
+          "remaining_fat_g"
+        ],
+        "title": "DailyFoodLogOut"
       },
       "DayFatigueOut": {
         "properties": {
@@ -2091,6 +2400,315 @@
         ],
         "title": "FoodFactsOut",
         "description": "Macros for a scanned barcode, per 100 g (SPEC \u00a717.5 B2b)."
+      },
+      "FoodLogCopyDayIn": {
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date"
+          },
+          "to_date": {
+            "type": "string",
+            "format": "date",
+            "title": "To Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_date",
+          "to_date"
+        ],
+        "title": "FoodLogCopyDayIn"
+      },
+      "FoodLogIn": {
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "grams": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,1}0*$"
+              }
+            ],
+            "title": "Grams"
+          },
+          "kcal": {
+            "type": "integer",
+            "maximum": 20000.0,
+            "minimum": 0.0,
+            "title": "Kcal"
+          },
+          "protein_g": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,1}0*$"
+              }
+            ],
+            "title": "Protein G"
+          },
+          "carbs_g": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,1}0*$"
+              }
+            ],
+            "title": "Carbs G"
+          },
+          "fat_g": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,1}0*$"
+              }
+            ],
+            "title": "Fat G"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FoodLogSource",
+            "default": "manual"
+          },
+          "barcode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barcode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "grams",
+          "kcal",
+          "protein_g",
+          "carbs_g",
+          "fat_g"
+        ],
+        "title": "FoodLogIn"
+      },
+      "FoodLogOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "grams": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Grams"
+          },
+          "kcal": {
+            "type": "integer",
+            "title": "Kcal"
+          },
+          "protein_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Protein G"
+          },
+          "carbs_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Carbs G"
+          },
+          "fat_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Fat G"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FoodLogSource"
+          },
+          "barcode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barcode"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "date",
+          "name",
+          "grams",
+          "kcal",
+          "protein_g",
+          "carbs_g",
+          "fat_g",
+          "source",
+          "barcode",
+          "created_at"
+        ],
+        "title": "FoodLogOut"
+      },
+      "FoodLogRecentOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "grams": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Grams"
+          },
+          "kcal": {
+            "type": "integer",
+            "title": "Kcal"
+          },
+          "protein_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Protein G"
+          },
+          "carbs_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Carbs G"
+          },
+          "fat_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Fat G"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FoodLogSource"
+          },
+          "barcode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barcode"
+          },
+          "last_logged_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Last Logged On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "grams",
+          "kcal",
+          "protein_g",
+          "carbs_g",
+          "fat_g",
+          "source",
+          "barcode",
+          "last_logged_on"
+        ],
+        "title": "FoodLogRecentOut"
+      },
+      "FoodLogSource": {
+        "type": "string",
+        "enum": [
+          "manual",
+          "barcode",
+          "llm"
+        ],
+        "title": "FoodLogSource"
+      },
+      "FoodLogTotalsOut": {
+        "properties": {
+          "kcal": {
+            "type": "integer",
+            "title": "Kcal"
+          },
+          "protein_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Protein G"
+          },
+          "carbs_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Carbs G"
+          },
+          "fat_g": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Fat G"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kcal",
+          "protein_g",
+          "carbs_g",
+          "fat_g"
+        ],
+        "title": "FoodLogTotalsOut"
       },
       "Goal": {
         "type": "string",

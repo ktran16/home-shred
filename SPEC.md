@@ -149,6 +149,15 @@ class ActivityLevel(StrEnum):
     MODERATE = "moderate"            # ×1.55
     ACTIVE = "active"                # ×1.725
     VERY_ACTIVE = "very_active"      # ×1.9
+
+class ExercisePreferenceStatus(StrEnum):
+    FAVORITE = "favorite"
+    AVOID = "avoid"
+
+class FoodLogSource(StrEnum):
+    MANUAL = "manual"
+    BARCODE = "barcode"
+    LLM = "llm"
 ```
 
 ---
@@ -170,18 +179,32 @@ All PKs `int` identity unless noted. All timestamps `timestamptz`, stored UTC. A
 | secondary_muscles | text[] | default `{}` |
 | level | text | enum `Level` |
 | is_compound | bool | not null, default false |
+| bodyweight_load_factor | float | not null, default 1.0; volume proxy for bodyweight exercises (§16 R4) |
 | instructions | text[] | default `{}` |
 
-### user_profile  *(single row, id always = 1)*
+### exercise_preferences
 | col | type | notes |
 |---|---|---|
-| id | int pk | check `id = 1` |
+| exercise_id | int pk/fk → exercises, on delete cascade | |
+| status | text | enum `ExercisePreferenceStatus`, index |
+| updated_at | timestamptz | |
+
+### user_profile
+Profiles are still single-user app settings, not auth users. Exactly one profile should
+be active at a time; other profiles are saved presets.
+
+| col | type | notes |
+|---|---|---|
+| id | int pk | identity |
+| name | text | not null, non-empty |
+| is_active | bool | default false, index; service enforces one active |
 | sex | text | enum `Sex` |
 | age | int | check 14–100 |
 | height_cm | numeric(5,1) | |
 | weight_kg | numeric(5,1) | |
 | activity_level | text | enum `ActivityLevel` |
 | experience_level | text | enum `Level` |
+| limitations | text[] | default `{}`; allowed: shoulder, knee, lower_back, wrist, pull_up |
 | updated_at | timestamptz | |
 
 ### plans
@@ -257,6 +280,21 @@ All PKs `int` identity unless noted. All timestamps `timestamptz`, stored UTC. A
 | protein_g | int | |
 | carbs_g | int | |
 | fat_g | int | |
+
+### food_log
+| col | type | notes |
+|---|---|---|
+| id | int pk | |
+| date | date | not null, index |
+| name | text | not null, non-empty |
+| grams | numeric(7,1) | check > 0 |
+| kcal | int | check >= 0 |
+| protein_g | numeric(7,1) | check >= 0 |
+| carbs_g | numeric(7,1) | check >= 0 |
+| fat_g | numeric(7,1) | check >= 0 |
+| source | text | enum `FoodLogSource`, index |
+| barcode | text | nullable |
+| created_at | timestamptz | |
 
 ---
 
@@ -396,7 +434,10 @@ Tests: known-input vectors for male/female; assert kcal from macros ≈ target_k
 
 ## 9. Volume aggregation (`services/volume.py`)
 
-Weekly **training volume** = Σ (sets × reps × weight_kg) per primary muscle group, grouped by ISO week. For bodyweight (`weight_kg` null), use a bodyweight proxy: `reps × (profile.weight_kg × muscle_factor)` where `muscle_factor` defaults to 1.0 (document the simplification). Endpoint returns `[{week, muscle, volume}]`.
+Weekly **training volume** = Σ (sets × reps × weight_kg) per primary muscle group,
+grouped by ISO week. For bodyweight (`weight_kg` null), use the §16 R4 proxy:
+`reps × (profile.weight_kg × exercise.bodyweight_load_factor)`, defaulting the factor
+to 1.0 for uncurated exercises. Endpoint returns `[{week, muscle, volume}]`.
 
 ---
 
@@ -412,10 +453,14 @@ GET   /api/exercises/search                ?q&limit  → list[ExerciseSearchHitO
 GET   /api/exercises/{id}                  → ExerciseOut
 GET   /api/exercises/{id}/history          ?sessions  → ExerciseHistoryOut   # recent completed sessions for this exercise (§16 follow-up)
 PUT   /api/exercises/{id}/preference  ExercisePreferenceIn → ExercisePreferenceOut  # favorite/avoid
-DELETE/api/exercises/{id}/preference        → 204
+DELETE /api/exercises/{id}/preference       → 204
 
 GET   /api/profile                         → ProfileOut
-PUT   /api/profile          ProfileIn      → ProfileOut       # upserts row id=1; also recomputes nutrition targets (§8)
+PUT   /api/profile          ProfileIn      → ProfileOut       # upserts active profile; recomputes nutrition targets (§8)
+POST  /api/profile          ProfileIn      → ProfileOut       # creates and activates a named profile
+GET   /api/profile/all                     → list[ProfileOut] # active first
+PATCH /api/profile/{profile_id}/activate   → ProfileOut       # activates profile; recomputes nutrition targets
+DELETE /api/profile/{profile_id}           → 204              # 409 if deleting the last profile
 
 POST  /api/plans            PlanCreateIn   → PlanOut          # {goal, days_per_week}; generates+persists, activates
 GET   /api/plans                            → list[PlanSummaryOut]
@@ -437,6 +482,11 @@ GET   /api/body-metrics      ?from&to        → list[BodyMetricOut]
 
 GET   /api/nutrition/targets                 → NutritionTargetOut  # latest
 POST  /api/nutrition/recompute               → NutritionTargetOut  # from current profile
+GET   /api/nutrition/log        ?date         → DailyFoodLogOut     # daily entries/totals/remaining (§19.1)
+POST  /api/nutrition/log        FoodLogIn     → DailyFoodLogOut     # manual/barcode/llm-source entry (§19.1)
+GET   /api/nutrition/log/recent ?limit        → list[FoodLogRecentOut]  # recent distinct foods for quick-add (§19.5)
+POST  /api/nutrition/log/copy-day FoodLogCopyDayIn → DailyFoodLogOut # clone a day's entries; 404 if source empty (§19.5)
+DELETE /api/nutrition/log/{id}                → DailyFoodLogOut     # delete entry, return updated day (§19.1)
 GET   /api/nutrition/adaptive                → AdaptiveTDEEOut     # adaptive-TDEE preview (§17.3 A1)
 POST  /api/nutrition/adaptive/apply          → NutritionTargetOut  # persist today's adaptive target (§17.3 A1)
 GET   /api/nutrition/barcode/{code}          → FoodFactsOut        # Open Food Facts macro lookup (§17.5 B2b, external)
@@ -451,12 +501,12 @@ Error handling: 404 for missing ids, 422 from Pydantic, 409 if generating a plan
 | Route | Purpose | Key UI |
 |---|---|---|
 | `/` | Dashboard | active plan card, today's workout CTA, bodyweight sparkline, today's macro targets |
-| `/profile` | edit profile | form; on save → `POST /nutrition/recompute` |
+| `/profile` | manage profile | named profile switcher + form; save/switch/create recomputes targets |
 | `/plan/new` | generate | select days/week (3/4/5) → `POST /plans` → redirect to `/plan` |
 | `/plan` | view active plan | accordion of days → exercises with sets×reps @ rest |
 | `/workout/[planDayId]` | **session runner** | per-exercise set rows (reps/weight inputs prefilled from `suggest_next_targets`), checkmark per set, **rest countdown timer** with audio beep, "complete workout" button |
 | `/progress` | charts | recharts: weekly volume per muscle (stacked bar), bodyweight line |
-| `/nutrition` | targets | TDEE + macro rings/cards |
+| `/nutrition` | targets + food log | TDEE + macro cards, adaptive TDEE, barcode lookup, daily food log |
 
 Session runner details:
 - Rest timer: countdown using `rest_seconds`; auto-start when a set is checked; audio cue (`<audio>` beep) + vibration (`navigator.vibrate`) on finish.
@@ -478,7 +528,7 @@ FE state: server state via the generated openapi-fetch client + React Query (Tan
 - All ORM models + enums. Alembic initial migration. `seed_exercises.py` ingests `free-exercise-db.json`, normalizes equipment, **curates `pattern` + `is_compound`** using `data/exercise_pools.py` mapping. Verify row counts per pattern (assert each non-conditioning pattern has ≥3 allowed exercises, else log a warning).
 
 **Phase 2 — Exercises + Profile API/FE**
-- exercises + profile endpoints + schemas. FE `/profile` page and an exercises browser.
+- exercises + profile endpoints + schemas. FE `/profile` manager and an exercises browser.
 
 **Phase 3 — Plan generator (CORE)**
 - `plan_generator.py` + `exercise_pools.py` + `POST/GET /plans`. All §6.9 tests pass. FE `/plan/new` + `/plan`.
@@ -612,6 +662,12 @@ here so the spec stays the source of truth.
   by plyometric jumps, mountain climbers, wind sprints and a dumbbell swing.
 - **Profile PUT recomputes nutrition** (so the dashboard is always current), and a
   convenience `GET /api/sessions/{id}` was added for the workout runner.
+- **Named active profiles.** The original singleton `user_profile` became a small
+  profile manager: `GET /api/profile` remains backward-compatible and returns the
+  active profile, while `POST /api/profile`, `GET /api/profile/all`,
+  `PATCH /api/profile/{profile_id}/activate`, and `DELETE /api/profile/{profile_id}`
+  manage saved profile presets. Training/nutrition data is still global to the solo
+  app; see §19.4 if profile-scoped data is ever needed.
 - **Test isolation.** Backend tests use a function-scoped async engine (NullPool) with
   a fresh schema per test — chosen over savepoint-rollback because asyncpg connections
   are bound to the event loop and a session-scoped engine crossed loops.
@@ -718,9 +774,9 @@ Cloud LLM is documented as a **fallback**, not the default (§17.7).
 ### 17.3 Track A — Classic ML & time-series (local, in-process)
 - **A1 — Adaptive TDEE / calorie auto-tuning. ✅ DONE (M1).** Estimates real maintenance
   from the bodyweight **trend**: a least-squares slope over `body_metrics` (kg/day, noise-
-  robust, no extra deps) feeds `estimated_TDEE = mean_intake − slope×7700`. Intake is
-  assumed to equal the `nutrition_targets` in effect (no food log yet — documented
-  simplification, like §9's proxy). Guardrails: ≥4 weigh-ins spanning ≥14 days in a 28-day
+  robust, no extra deps) feeds `estimated_TDEE = mean_intake − slope×7700`. Intake uses
+  measured `food_log` kcal on logged days and falls back to the `nutrition_targets` in
+  effect on unlogged days. Guardrails: ≥4 weigh-ins spanning ≥14 days in a 28-day
   window, estimate clamped to ±25% of the static TDEE. Pure `linear_slope` /
   `adaptive_estimate` (unit-tested), `GET /api/nutrition/adaptive` (preview, `enough_data`
   flag) + `POST /api/nutrition/adaptive/apply` (persists today's target), and an Adaptive
@@ -785,9 +841,8 @@ unconstrained by the CPU-only host and the strongest privacy story.
   `components/barcode-scanner.tsx`, manual digit-entry fallback) + an **Open Food Facts**
   lookup: `services/food_lookup.py` (`parse_off_product` pure/unit-tested mapper,
   `lookup_barcode` httpx fetch), `GET /api/nutrition/barcode/{code}`. Returns per-100 g
-  macros scaled to a serving on the FE (`lib/food.ts`). **Scope:** this is the *lookup*
-  building block; persisting a **food log** (needed for true intake-based adaptive TDEE,
-  §17.3 A1) is the next step. **Note:** an OFF lookup leaves the LAN, so it is opt-in /
+  macros scaled to a serving on the FE (`lib/food.ts`) and can now be explicitly saved
+  into the daily `food_log` (§19.1). **Note:** an OFF lookup leaves the LAN, so it is opt-in /
   external (§17.7); an offline OFF dump can replace `lookup_barcode` behind the same
   interface for a fully local path.
 
@@ -859,26 +914,23 @@ added.
 
 ## 19. What's Next — Roadmap & Brainstorm
 
-> State as of this revision: MVP + §16 (R1–R7) + §17 M1/M3/M4 + §18 all shipped.
-> 125 backend tests, 65 FE tests. The single remaining AI/ML milestone is **M2
+> State as of this revision: MVP + §16 (R1–R7) + §17 M1/M3/M4 + §18 + the §19.1
+> food log (+ quick-add recent & copy-day, §19.5) + named profile manager all shipped.
+> 129 backend tests, 71 FE tests;
+> ruff/eslint clean, build green. The single remaining AI/ML milestone is **M2
 > (Ollama sidecar)**. Below is the recommended ordering, grounded in what each item
 > unblocks rather than novelty.
 
-### 19.1 The keystone gap: a **food log** (do this first)
-Three shipped features all carry the same "documented simplification" because there is
-no place to record what was actually eaten:
-- §17.3 A1 adaptive TDEE *assumes intake = the target in effect*.
-- §17.5 B2b barcode lookup *returns* macros but cannot *log* them.
-- §17.4 B1a (LLM food parsing, M2) has nowhere to write its output.
-
-**Proposal — `food_log` table** (`id, date, name, grams, kcal, protein_g, carbs_g,
-fat_g, source enum{manual,barcode,llm}, barcode?`). New service `services/food_log.py`
-(daily totals, remaining-vs-target), `POST/GET/DELETE /api/nutrition/log`, a daily
-food-log card on `/nutrition` fed by the existing barcode scanner + a manual add form.
-Then make A1 use **measured intake** when a day has logged food and fall back to the
-target proxy otherwise (one-line change in `adaptive_estimate`'s `intake_kcals`). This
-is the highest-leverage next build: small, local, no new heavy deps, and it upgrades
-three existing features at once.
+### 19.1 Food log. ✅ DONE
+The keystone nutrition gap is now closed:
+- `food_log` table (`id, date, name, grams, kcal, protein_g, carbs_g, fat_g,
+  source enum{manual,barcode,llm}, barcode?, created_at`).
+- `services/food_log.py` computes daily entries, totals, remaining-vs-target, and the
+  adaptive-TDEE intake series.
+- `GET/POST/DELETE /api/nutrition/log`; `/nutrition` has a daily food-log card, manual
+  add form, delete actions, and barcode lookup → "Add to log".
+- §17.3 A1 now uses **measured intake** on logged days and falls back to the target proxy
+  otherwise. This preserves old behavior when the user does not log food.
 
 ### 19.2 M2 — Ollama sidecar (the last AI/ML milestone)
 - Add an `ollama` service to `docker-compose.prod.yml`; backend reads `OLLAMA_URL`.
@@ -912,10 +964,46 @@ three existing features at once.
   editing a generated plan (swap/reorder before starting).
 - **Light auth:** a single shared passcode or reverse-proxy basic-auth for the LAN —
   currently anyone on the network can hit the API (acceptable for now, flagged here).
+- **Data ownership / export:** a one-click JSON/CSV export of workouts, set logs, body
+  metrics, nutrition targets, and the food log (and an import to match) — a self-host
+  user should be able to take their data with them. Complements the §14.7 `pg_dump`
+  cron but is user-facing (no shell access needed) and pure read/serialisation, so no
+  schema change.
+- **Profile-scoped history (only if needed):** named profiles currently behave as saved
+  active presets inside a solo app; plans, sessions, body metrics, nutrition targets,
+  and food logs are global. If the app becomes family/multi-person in practice, add
+  `profile_id` to those tables and migrate existing rows to the active profile. Until
+  then, keep this out of scope to avoid turning a solo app into multi-user software.
 
-### 19.5 Suggested order
-1. **Food log (§19.1)** — unblocks A1/B2b/B1a, small and local.
-2. **M2 B1a** food logging on top of it, then **B1b** substitution.
-3. **Ops hardening** (backups, password, deploy) — do before relying on it daily.
-4. **PWA/offline** for the runner.
-5. **A2/A3/pose maturation** — only when accumulated data makes the upgrade pay off.
+### 19.5 Nutrition follow-ups (now unblocked by the food log)
+The §19.1 `food_log` table makes several high-utility, rules-only nutrition features cheap
+to add — no ML, no new external calls. Highest daily value first:
+- **Quick-add / recent foods.** ✅ DONE. `GET /api/nutrition/log/recent?limit` returns the
+  most-recent *distinct* foods (distinctness keys on name+macros+barcode so different
+  serving sizes stay separate); `/nutrition` renders them as one-tap chips that re-log via
+  the existing `FoodLogIn` path (`recentFoodToLog`). A persisted `favorite` flag is still a
+  possible follow-on but recency alone covers the daily-friction case.
+- **Copy a day.** ✅ DONE. `POST /api/nutrition/log/copy-day {from_date, to_date}` clones
+  every entry from a source day into the selected day (404 if the source day is empty);
+  `/nutrition` has a "Copy a day" control defaulting to the day before.
+- **Nutrition history & adherence.** A weekly view on `/nutrition`: logged kcal/macros vs
+  target per day, a 7-day adherence %, and a macro-trend chart (mirrors the §18 strength
+  chart and the §5/§9 weekly-volume rollup). Turns the food log into feedback, and the
+  measured intake also sharpens the §17.3-A1 adaptive-TDEE estimate.
+- **Meal / recipe templates.** Save a named combination of foods (e.g. "post-workout
+  shake") and log it as one entry — natural follow-on once quick-add exists.
+
+These also de-risk **M2 B1a** (§19.2): NL food logging just needs to emit the same
+`FoodLogIn` shape the manual/quick-add paths already validate.
+
+### 19.6 Suggested order
+1. **Ops hardening** (backups, password, deploy) — do before relying on it daily.
+2. **Nutrition follow-ups** (§19.5) — quick-add/copy-day ✅ done; next is the weekly
+   adherence view, then meal/recipe templates. Cheapest remaining wins.
+3. **PWA/offline** for the runner.
+4. **Data export/import** (§19.4) — once there's enough data worth owning.
+5. **Plan lifecycle** (archive/edit plans, mesocycle rollover prompt).
+6. **Profile-scoped history** (§19.4) — only if the named-profile manager starts being
+   used as real multi-person support.
+7. **A2/A3/pose maturation** — only when accumulated data makes the upgrade pay off.
+8. **M2 B1a/B1b** remains available later, but is intentionally ignored for now.

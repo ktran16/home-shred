@@ -12,8 +12,9 @@ All run on-device or in-process — no cloud, CPU-only friendly:
 - **Adaptive TDEE** (`/nutrition`): real maintenance calories from your bodyweight trend.
 - **Exercise search** (`/exercises`): "a hamstring exercise like an RDL".
 - **Barcode food lookup** (`/nutrition`): scan a barcode → macros (via Open Food Facts).
+- **Food log** (`/nutrition`): manual/barcode entries with daily totals and remaining macros.
 
-What's next is brainstormed in `SPEC.md §19` (food log → Ollama sidecar → ops/PWA).
+What's next is brainstormed in `SPEC.md §19` (ops hardening → PWA/offline → plan lifecycle).
 
 ## Run it (dev)
 

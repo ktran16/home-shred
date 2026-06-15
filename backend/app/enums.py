@@ -58,6 +58,12 @@ class ExercisePreferenceStatus(StrEnum):
     AVOID = "avoid"
 
 
+class FoodLogSource(StrEnum):
+    MANUAL = "manual"
+    BARCODE = "barcode"
+    LLM = "llm"
+
+
 # rationale: TDEE multipliers per activity level (SPEC §4, §8).
 ACTIVITY_FACTORS: dict[ActivityLevel, float] = {
     ActivityLevel.SEDENTARY: 1.2,

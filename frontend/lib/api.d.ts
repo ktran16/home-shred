@@ -441,6 +441,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/nutrition/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Food Log */
+        get: operations["get_food_log_api_nutrition_log_get"];
+        put?: never;
+        /** Post Food Log */
+        post: operations["post_food_log_api_nutrition_log_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nutrition/log/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent Foods */
+        get: operations["recent_foods_api_nutrition_log_recent_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nutrition/log/copy-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy Food Log Day */
+        post: operations["copy_food_log_day_api_nutrition_log_copy_day_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nutrition/log/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Food Log */
+        delete: operations["delete_food_log_api_nutrition_log__entry_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/nutrition/adaptive": {
         parameters: {
             query?: never;
@@ -583,6 +652,26 @@ export interface components {
             /** Met */
             met: boolean;
         };
+        /** DailyFoodLogOut */
+        DailyFoodLogOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Entries */
+            entries: components["schemas"]["FoodLogOut"][];
+            totals: components["schemas"]["FoodLogTotalsOut"];
+            target: components["schemas"]["NutritionTargetOut"] | null;
+            /** Remaining Kcal */
+            remaining_kcal: number | null;
+            /** Remaining Protein G */
+            remaining_protein_g: string | null;
+            /** Remaining Carbs G */
+            remaining_carbs_g: string | null;
+            /** Remaining Fat G */
+            remaining_fat_g: string | null;
+        };
         /** DayFatigueOut */
         DayFatigueOut: {
             /** Day Index */
@@ -698,6 +787,109 @@ export interface components {
             carbs_per_100g: number | null;
             /** Fat Per 100G */
             fat_per_100g: number | null;
+        };
+        /** FoodLogCopyDayIn */
+        FoodLogCopyDayIn: {
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+        };
+        /** FoodLogIn */
+        FoodLogIn: {
+            /** Date */
+            date?: string | null;
+            /** Name */
+            name: string;
+            /** Grams */
+            grams: number | string;
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: number | string;
+            /** Carbs G */
+            carbs_g: number | string;
+            /** Fat G */
+            fat_g: number | string;
+            /** @default manual */
+            source: components["schemas"]["FoodLogSource"];
+            /** Barcode */
+            barcode?: string | null;
+        };
+        /** FoodLogOut */
+        FoodLogOut: {
+            /** Id */
+            id: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Name */
+            name: string;
+            /** Grams */
+            grams: string;
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: string;
+            /** Carbs G */
+            carbs_g: string;
+            /** Fat G */
+            fat_g: string;
+            source: components["schemas"]["FoodLogSource"];
+            /** Barcode */
+            barcode: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** FoodLogRecentOut */
+        FoodLogRecentOut: {
+            /** Name */
+            name: string;
+            /** Grams */
+            grams: string;
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: string;
+            /** Carbs G */
+            carbs_g: string;
+            /** Fat G */
+            fat_g: string;
+            source: components["schemas"]["FoodLogSource"];
+            /** Barcode */
+            barcode: string | null;
+            /**
+             * Last Logged On
+             * Format: date
+             */
+            last_logged_on: string;
+        };
+        /**
+         * FoodLogSource
+         * @enum {string}
+         */
+        FoodLogSource: "manual" | "barcode" | "llm";
+        /** FoodLogTotalsOut */
+        FoodLogTotalsOut: {
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: string;
+            /** Carbs G */
+            carbs_g: string;
+            /** Fat G */
+            fat_g: string;
         };
         /**
          * Goal
@@ -1956,6 +2148,165 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NutritionTargetOut"];
+                };
+            };
+        };
+    };
+    get_food_log_api_nutrition_log_get: {
+        parameters: {
+            query?: {
+                date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyFoodLogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_food_log_api_nutrition_log_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FoodLogIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyFoodLogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recent_foods_api_nutrition_log_recent_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoodLogRecentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    copy_food_log_day_api_nutrition_log_copy_day_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FoodLogCopyDayIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyFoodLogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_food_log_api_nutrition_log__entry_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyFoodLogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
