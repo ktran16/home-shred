@@ -17,6 +17,8 @@ export default function ExercisesPage() {
   const qc = useQueryClient();
   const [equipment, setEquipment] = useState<Equipment>("");
   const [category, setCategory] = useState<Category>("");
+  const [search, setSearch] = useState("");
+  const searching = search.trim().length > 0;
 
   const { data, isLoading } = useQuery({
     queryKey: ["exercises", equipment, category],
@@ -32,6 +34,20 @@ export default function ExercisesPage() {
       return data ?? [];
     },
   });
+  // Local semantic-ish search (SPEC §17.3 A3): overrides the filtered list when active.
+  const searchResults = useQuery({
+    queryKey: ["exercise-search", search],
+    enabled: searching,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/exercises/search", {
+        params: { query: { q: search.trim(), limit: 20 } },
+      });
+      return data ?? [];
+    },
+  });
+  const displayed = searching ? (searchResults.data ?? []).map((hit) => hit.exercise) : (data ?? []);
+  const listLoading = searching ? searchResults.isLoading : isLoading;
+
   const preference = useMutation({
     mutationFn: async ({
       exerciseId,
@@ -64,7 +80,23 @@ export default function ExercisesPage() {
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold">Exercises</h1>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div>
+        <Label>Search</Label>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="e.g. hamstring exercise like an RDL"
+          className="h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950"
+        />
+        {searching && (
+          <p className="mt-1 text-xs text-zinc-500">
+            Ranked by relevance (local, on-device). Clear to browse with filters.
+          </p>
+        )}
+      </div>
+
+      <div className={cn("grid grid-cols-2 gap-3", searching && "opacity-50")}>
         <div>
           <Label>Equipment</Label>
           <Select value={equipment} onChange={(e) => setEquipment(e.target.value as Equipment)}>
@@ -87,15 +119,17 @@ export default function ExercisesPage() {
         </div>
       </div>
 
-      {isLoading && <p className="text-sm text-zinc-500">Loading…</p>}
-      {data && (
+      {listLoading && <p className="text-sm text-zinc-500">Loading…</p>}
+      {!listLoading && (
         <p className="text-sm text-zinc-500">
-          {data.length} exercises · favorites get priority in new plans, avoided moves stay out.
+          {searching
+            ? `${displayed.length} result${displayed.length === 1 ? "" : "s"} for “${search.trim()}”`
+            : `${displayed.length} exercises · favorites get priority in new plans, avoided moves stay out.`}
         </p>
       )}
 
       <ul className="grid gap-3 md:grid-cols-2">
-        {data?.map((ex) => (
+        {displayed.map((ex) => (
           <Card
             key={ex.id}
             className={cn(

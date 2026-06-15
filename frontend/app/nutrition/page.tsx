@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 
+import { BarcodeScanner } from "@/components/barcode-scanner";
 import { Button, Card } from "@/components/ui";
 import { api } from "@/lib/api";
 
@@ -144,6 +145,8 @@ export default function NutritionPage() {
           )}
         </Card>
       )}
+
+      <BarcodeScanner />
     </div>
   );
 }

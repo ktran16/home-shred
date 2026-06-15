@@ -16,8 +16,14 @@ import {
 } from "recharts";
 
 import { Badge, Button, Card, Input, Label } from "@/components/ui";
-import { api, type ExerciseStrengthOut, type SessionOut } from "@/lib/api";
+import {
+  api,
+  type ExerciseStrengthOut,
+  type LoadPredictionOut,
+  type SessionOut,
+} from "@/lib/api";
 import { pivotVolume } from "@/lib/charts";
+import { predictionHeadline, readinessLabel } from "@/lib/prediction";
 import { prHeadline, strengthSeries, strengthUnitLabel } from "@/lib/strength";
 import { buildMonthCalendar, buildWorkoutStats, type CalendarDay } from "@/lib/workout-stats";
 
@@ -42,6 +48,10 @@ export default function ProgressPage() {
   const strength = useQuery({
     queryKey: ["strength"],
     queryFn: async () => (await api.GET("/api/progress/strength")).data ?? [],
+  });
+  const prediction = useQuery({
+    queryKey: ["prediction"],
+    queryFn: async () => (await api.GET("/api/progress/prediction")).data ?? [],
   });
 
   const { rows, muscles } = pivotVolume(volume.data ?? []);
@@ -98,6 +108,12 @@ export default function ProgressPage() {
         data={strength.data ?? []}
         isLoading={strength.isLoading}
         isError={strength.isError}
+      />
+
+      <PredictionSection
+        data={prediction.data ?? []}
+        isLoading={prediction.isLoading}
+        isError={prediction.isError}
       />
 
       <Card className="flex flex-col gap-2">
@@ -214,6 +230,67 @@ function StrengthSection({
             </div>
           )}
         </>
+      )}
+    </Card>
+  );
+}
+
+const TONE_CLASS: Record<string, string> = {
+  progress: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  hold: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+  building: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
+};
+
+function PredictionSection({
+  data,
+  isLoading,
+  isError,
+}: {
+  data: LoadPredictionOut[];
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  // forecastable lifts first; cap the list so it stays a glanceable card.
+  const ordered = [...data].sort(
+    (a, b) => Number(b.predicted_next != null) - Number(a.predicted_next != null),
+  );
+
+  return (
+    <Card className="flex flex-col gap-3">
+      <div>
+        <h2 className="font-semibold">Next-session forecast</h2>
+        <p className="text-sm text-zinc-500">
+          Trend-based load / readiness per lift (a baseline; sharpens with history).
+        </p>
+      </div>
+      {isLoading ? (
+        <p className="text-sm text-zinc-500">Loading forecast...</p>
+      ) : isError ? (
+        <p className="text-sm text-red-600">Could not load forecast.</p>
+      ) : data.length === 0 ? (
+        <p className="text-sm text-zinc-500">Log a few sessions to forecast next-session load.</p>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {ordered.slice(0, 6).map((p) => {
+            const verdict = readinessLabel(p);
+            return (
+              <div key={p.exercise_id} className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-semibold">{p.exercise_name}</span>
+                  <Badge className={TONE_CLASS[verdict.tone]}>{verdict.label}</Badge>
+                </div>
+                <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                  {predictionHeadline(p)}
+                </div>
+                {p.predicted_next != null && (
+                  <div className="mt-1 text-xs text-zinc-400">
+                    confidence {Math.round(p.confidence * 100)}% · {p.sessions} sessions
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
     </Card>
   );
