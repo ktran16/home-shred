@@ -2,11 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { MovementCue } from "@/components/movement-cue";
+import { PoseRepCounter } from "@/components/pose-rep-counter";
 import { ConditioningTimer, RestTimer } from "@/components/rest-timer";
 import { Badge, Button, Card, Input } from "@/components/ui";
+import { trackConfigFor } from "@/lib/pose";
 import {
   api,
   type ExerciseOut,
@@ -667,6 +669,9 @@ function SetRow({
   const [weight, setWeight] = useState<string>(defaultWeight != null ? String(defaultWeight) : "");
   const [rpe, setRpe] = useState<string>("");
   const [done, setDone] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const repConfig = trackConfigFor(exercise.pattern);
+  const onCameraRep = useCallback((total: number) => setReps(total), []);
   // History-based prefill can arrive after mount; apply it once while still untouched.
   const prefilledRef = useRef(false);
   useEffect(() => {
@@ -704,6 +709,7 @@ function SetRow({
   });
 
   return (
+    <div className="flex flex-col gap-2">
     <div className="grid gap-2 rounded-lg bg-white p-2 dark:bg-zinc-900 sm:grid-cols-[56px_180px_1fr_84px_52px] sm:items-center">
       <span className="text-sm font-semibold text-zinc-500">Set {setNumber}</span>
       <div className="grid grid-cols-[44px_1fr_44px] items-center gap-1">
@@ -760,6 +766,19 @@ function SetRow({
       >
         {done ? "✓" : "Log"}
       </Button>
+    </div>
+      {repConfig && (
+        <button
+          type="button"
+          onClick={() => setCameraOpen((open) => !open)}
+          className="self-start text-xs font-medium text-emerald-600 hover:underline"
+        >
+          {cameraOpen ? "Hide camera counter" : "📷 Count reps with camera"}
+        </button>
+      )}
+      {repConfig && cameraOpen && (
+        <PoseRepCounter config={repConfig} onRep={onCameraRep} onClose={() => setCameraOpen(false)} />
+      )}
     </div>
   );
 }
