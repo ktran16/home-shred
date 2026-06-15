@@ -2,6 +2,7 @@
 
 from app.models.exercise import Exercise
 from app.models.exercise_preference import ExercisePreference
+from app.models.food import Food
 from app.models.food_log import FoodLog
 from app.models.measurement import MeasurementEntry, MeasurementType
 from app.models.metrics import BodyMetric, NutritionTarget
@@ -12,6 +13,7 @@ from app.models.session import SetLog, WorkoutSession
 __all__ = [
     "Exercise",
     "ExercisePreference",
+    "Food",
     "FoodLog",
     "UserProfile",
     "Plan",

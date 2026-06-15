@@ -17,6 +17,7 @@ import {
 } from "recharts";
 
 import { BarcodeScanner } from "@/components/barcode-scanner";
+import { FoodSearchCard } from "@/components/food-search";
 import { Button, Card, Input, Label } from "@/components/ui";
 import {
   api,
@@ -262,6 +263,11 @@ export default function NutritionPage() {
         history={history.data ?? null}
         loading={history.isLoading}
         error={history.isError}
+      />
+
+      <FoodSearchCard
+        logging={addFood.isPending}
+        onLog={(entry) => addFood.mutate({ ...entry, date: logDate })}
       />
 
       <BarcodeScanner

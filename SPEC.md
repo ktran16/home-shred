@@ -1077,14 +1077,16 @@ deliberately left out of scope). Ordered by value/effort:
   measurements" card on `/progress` (latest+change tiles, per-type trend chart, log form,
   add/delete custom types) + pure `lib/measurements.ts`. Tests: `tests/test_measurements.py`
   (7) + `lib/measurements.test.ts` (4).
-- **W2 — Food search by name.** The biggest food-logging friction: today a food can only be
-  added by **barcode scan** (§17.5 B2b) or **manual macro entry** — there is no "search
-  *chicken breast*". wger ships a searchable ingredient database (Open Food Facts–backed). Add
-  `GET /api/nutrition/food/search?q=&limit=` that queries the OFF **text search** API and
-  **caches** hits into a local `food` table (name + per-100 g macros + barcode?), so repeat
-  lookups are offline and fast; results feed the existing `FoodLogIn` path. Medium; complements
-  quick-add/recent (§19.5, your own history) and de-risks M2 B1a (§19.2) by reusing the same
-  food shape.
+- **W2 — Food search by name. ✅ DONE.** Closes the gap where a food could only be added by
+  barcode scan (§17.5 B2b) or manual macros. `GET /api/nutrition/food/search?q=&limit=` queries
+  the OFF text-search endpoint, upserts hits into a local `foods` cache (migration
+  `e2f3a4b5c6d7`; barcode-keyed, name-indexed, per-100 g macros), then returns matches **from
+  the cache** — so repeat searches are offline/fast and an OFF outage degrades to cached results
+  instead of erroring. `services/food_search.py` shares `food_lookup.product_to_facts`; pure
+  `parse_off_search` is unit-tested without network. The endpoint returns `FoodFactsOut` so the
+  FE reuses `lib/food.ts` scaling. FE: a "Search a food" card on `/nutrition` (search → pick →
+  grams → Add to log, same `FoodLogIn` path as the scanner). Tests: `tests/test_food_search.py`
+  (7, network monkeypatched). Note (§17.7): an OFF query leaves the LAN — opt-in/external.
 - **W3 — Progress photos gallery.** wger has a date-tagged photo gallery for visual progress —
   a strong fit for a private recomp app. Add a `progress_photo` table (`date`, stored file
   path, optional note) with local disk storage under a configured media dir (mounted as a

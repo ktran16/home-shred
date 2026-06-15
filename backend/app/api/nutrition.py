@@ -18,7 +18,7 @@ from app.schemas.nutrition import (
     NutritionTargetOut,
     SuggestedTargets,
 )
-from app.services import food_log, food_lookup
+from app.services import food_log, food_lookup, food_search
 from app.services import nutrition as svc
 from app.services.nutrition import ADAPTIVE_MIN_DAYS_SPAN, ADAPTIVE_MIN_SAMPLES
 from app.services.profile import get_profile
@@ -161,6 +161,17 @@ async def adaptive(db: AsyncSession = Depends(get_db)) -> AdaptiveTDEEOut:
             fat_g=est.targets.fat_g,
         ),
     )
+
+
+@router.get("/food/search", response_model=list[FoodFactsOut])
+async def food_search_endpoint(
+    q: str = Query(min_length=1, max_length=80),
+    limit: int = Query(default=10, ge=1, le=25),
+    db: AsyncSession = Depends(get_db),
+) -> list[FoodFactsOut]:
+    """Search foods by name via Open Food Facts (cached locally; SPEC §19.8 W2, opt-in/external)."""
+    hits = await food_search.search_foods(db, q, limit=limit)
+    return [FoodFactsOut.model_validate(h) for h in hits]
 
 
 @router.get("/barcode/{code}", response_model=FoodFactsOut)

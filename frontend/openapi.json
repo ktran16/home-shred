@@ -1986,6 +1986,67 @@
         }
       }
     },
+    "/api/nutrition/food/search": {
+      "get": {
+        "tags": [
+          "nutrition"
+        ],
+        "summary": "Food Search Endpoint",
+        "description": "Search foods by name via Open Food Facts (cached locally; SPEC \u00a719.8 W2, opt-in/external).",
+        "operationId": "food_search_endpoint_api_nutrition_food_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 25,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FoodFactsOut"
+                  },
+                  "title": "Response Food Search Endpoint Api Nutrition Food Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/nutrition/barcode/{code}": {
       "get": {
         "tags": [

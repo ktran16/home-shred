@@ -53,15 +53,12 @@ def _num(nutriments: dict, key: str) -> float | None:
     return None
 
 
-def parse_off_product(payload: dict) -> FoodFacts | None:
-    """Map an OFF v2 product response to FoodFacts, or None if not found. Pure/testable."""
-    # OFF: status 1 = found, 0 = not found (string variants seen across versions).
-    if payload.get("status") not in (1, "1", "success"):
-        return None
-    product = payload.get("product") or {}
+def product_to_facts(product: dict, *, code: str | None = None) -> FoodFacts:
+    """Map a single OFF product object to FoodFacts. Pure/testable; shared by the
+    barcode lookup and the text search (SPEC §19.8 W2)."""
     nutriments = product.get("nutriments") or {}
     return FoodFacts(
-        code=str(payload.get("code") or product.get("code") or ""),
+        code=str(code or product.get("code") or ""),
         name=(product.get("product_name") or "").strip() or None,
         brand=(product.get("brands") or "").strip() or None,
         serving_size=(product.get("serving_size") or "").strip() or None,
@@ -70,6 +67,15 @@ def parse_off_product(payload: dict) -> FoodFacts | None:
         carbs_per_100g=_num(nutriments, "carbohydrates_100g"),
         fat_per_100g=_num(nutriments, "fat_100g"),
     )
+
+
+def parse_off_product(payload: dict) -> FoodFacts | None:
+    """Map an OFF v2 product response to FoodFacts, or None if not found. Pure/testable."""
+    # OFF: status 1 = found, 0 = not found (string variants seen across versions).
+    if payload.get("status") not in (1, "1", "success"):
+        return None
+    product = payload.get("product") or {}
+    return product_to_facts(product, code=payload.get("code"))
 
 
 async def lookup_barcode(code: str, *, timeout: float = OFF_TIMEOUT_SECONDS) -> FoodFacts:
