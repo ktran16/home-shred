@@ -62,8 +62,24 @@ docker compose -f docker-compose.prod.yml run --rm backend python -m app.seed.se
 The backend container applies Alembic migrations on start. Open
 `http://<host-ip>:3000` on the LAN, or `http://<tailscale-host>:3000` remotely.
 
+## Make targets
+
+A root `Makefile` wraps both compose files; run `make help` for the full list.
+
+```bash
+make up            # dev: start postgres + adminer
+make prod-up       # prod: build + start db + backend + frontend
+make prod-seed     # prod: seed the exercise catalogue
+make prod-health   # prod: curl the frontend + /api/health
+make prod-reset    # prod: DESTRUCTIVE — drop db volume, rebuild, re-seed
+```
+
+`prod-reset` is the routine required after any DB password change (Postgres only
+applies `POSTGRES_PASSWORD` on the first init of an empty data dir).
+
 ## Layout
 - `backend/` — FastAPI app, SQLAlchemy models, Alembic migrations, services, seed; `Dockerfile`.
 - `frontend/` — Next.js App Router UI with a generated, typed API client; `Dockerfile` (standalone).
 - `docker-compose.yml` — dev database (postgres + adminer).
 - `docker-compose.prod.yml` + `.env.prod.example` — self-host stack.
+- `Makefile` — dev/prod compose shortcuts (`make help`).
