@@ -34,3 +34,6 @@ export type FoodLogRecentOut = components["schemas"]["FoodLogRecentOut"];
 export type FoodLogCopyDayIn = components["schemas"]["FoodLogCopyDayIn"];
 export type DailyFoodLogOut = components["schemas"]["DailyFoodLogOut"];
 export type NutritionHistoryOut = components["schemas"]["NutritionHistoryOut"];
+export type MeasurementTypeOut = components["schemas"]["MeasurementTypeOut"];
+export type MeasurementEntryOut = components["schemas"]["MeasurementEntryOut"];
+export type MeasurementSeriesOut = components["schemas"]["MeasurementSeriesOut"];

@@ -5,6 +5,7 @@ from app.api import (
     body_metrics,
     exercises,
     health,
+    measurements,
     nutrition,
     plans,
     profile,
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
         sessions.router,
         progress.router,
         body_metrics.router,
+        measurements.router,
         nutrition.router,
     ]
     for router in api_routers:

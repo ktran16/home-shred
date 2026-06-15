@@ -1058,3 +1058,47 @@ Note the one place **neither** engine leads: both are short-memory (we read
 `recent_sessions[:2]`; wger checks only the prior iteration's logs). The true multi-week
 trend upgrade is already tracked as §16 limitation #2 → §19.3 (trained regressor), not
 here.
+
+### 19.8 Feature-level gaps (vs. wger) — rule-based, not yet built
+§19.7 covered the *progression engine*. A broader feature sweep of `wger` surfaced four
+borrowable, **ML-free** product features that fit HomeShred's solo / local-first / phone-in-
+the-gym design (gym multi-user, native mobile apps, and 40-language i18n were reviewed and
+deliberately left out of scope). Ordered by value/effort:
+
+- **W1 — Custom body measurements. ✅ DONE.** `measurement_types` (`key` unique, `label`,
+  `unit`, `builtin`) + `measurement_entries` (`type_id` FK ON DELETE CASCADE, `date`, `value`;
+  unique per type+day = upsert) via migration `d1e2f3a4b5c6`, with nine built-in circumference
+  types seeded (chest/shoulders/hips/arms/thighs/calf/neck). weight/bf%/waist deliberately
+  stay in `body_metrics` (the §8 nutrition engine reads them) and are not duplicated here.
+  `services/measurements.py` (slugified keys, idempotent `ensure_builtin_types`, per-type
+  `measurement_series` with latest/change); `GET/POST/DELETE /api/measurements/types`,
+  `GET/POST/DELETE /api/measurements/entries`, `GET /api/measurements/series`. Built-ins
+  can't be deleted (409); duplicate label = 409; entry for a missing type = 404. FE: a "Body
+  measurements" card on `/progress` (latest+change tiles, per-type trend chart, log form,
+  add/delete custom types) + pure `lib/measurements.ts`. Tests: `tests/test_measurements.py`
+  (7) + `lib/measurements.test.ts` (4).
+- **W2 — Food search by name.** The biggest food-logging friction: today a food can only be
+  added by **barcode scan** (§17.5 B2b) or **manual macro entry** — there is no "search
+  *chicken breast*". wger ships a searchable ingredient database (Open Food Facts–backed). Add
+  `GET /api/nutrition/food/search?q=&limit=` that queries the OFF **text search** API and
+  **caches** hits into a local `food` table (name + per-100 g macros + barcode?), so repeat
+  lookups are offline and fast; results feed the existing `FoodLogIn` path. Medium; complements
+  quick-add/recent (§19.5, your own history) and de-risks M2 B1a (§19.2) by reusing the same
+  food shape.
+- **W3 — Progress photos gallery.** wger has a date-tagged photo gallery for visual progress —
+  a strong fit for a private recomp app. Add a `progress_photo` table (`date`, stored file
+  path, optional note) with local disk storage under a configured media dir (mounted as a
+  volume in `docker-compose.prod.yml`), an upload + date-compare view, and the JSON/CSV export
+  (§19.4) gaining a photo manifest. The **only** feature here touching file upload/serving —
+  scope its storage and size limits explicitly. Medium.
+- **W4 — Session impression + workout calendar.** `WorkoutSession` already has `notes` but no
+  overall impression. wger logs a per-session general impression (good/neutral/bad) and shows a
+  workout calendar. Add a `WorkoutSession.impression` enum column (nullable, runner captures it
+  on completion) and a month calendar view on `/progress` (or a new `/calendar`) marking
+  trained days + impression colour. Small; pairs with persisting the runner's energy/soreness/
+  sleep inputs already noted in §19.3.
+
+These are independent of each other and of the §19.7 P-items; W1 and W2 are the highest
+value-per-effort. Suggested insertion into the §19.6 order: W1/W2 alongside the nutrition
+follow-ups (cheap, high daily value), W4 with plan-lifecycle/PWA polish, W3 once media storage
+is worth operating.

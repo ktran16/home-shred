@@ -15,14 +15,22 @@ import {
   YAxis,
 } from "recharts";
 
-import { Badge, Button, Card, Input, Label } from "@/components/ui";
+import { Badge, Button, Card, Input, Label, Select } from "@/components/ui";
 import {
   api,
   type ExerciseStrengthOut,
   type LoadPredictionOut,
+  type MeasurementSeriesOut,
+  type MeasurementTypeOut,
   type SessionOut,
 } from "@/lib/api";
 import { pivotVolume } from "@/lib/charts";
+import {
+  changeTone,
+  formatChange,
+  formatLatest,
+  measurementChartData,
+} from "@/lib/measurements";
 import { predictionHeadline, readinessLabel } from "@/lib/prediction";
 import { prHeadline, strengthSeries, strengthUnitLabel } from "@/lib/strength";
 import { buildMonthCalendar, buildWorkoutStats, type CalendarDay } from "@/lib/workout-stats";
@@ -138,7 +146,205 @@ export default function ProgressPage() {
       </Card>
 
       <AddMetric />
+
+      <MeasurementsSection />
     </div>
+  );
+}
+
+function MeasurementsSection() {
+  const qc = useQueryClient();
+  const [typeId, setTypeId] = useState<number | null>(null);
+  const [value, setValue] = useState("");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [newLabel, setNewLabel] = useState("");
+  const [chartTypeId, setChartTypeId] = useState<number | null>(null);
+
+  const types = useQuery({
+    queryKey: ["measurement-types"],
+    queryFn: async () => (await api.GET("/api/measurements/types")).data ?? [],
+  });
+  const series = useQuery({
+    queryKey: ["measurement-series"],
+    queryFn: async () => (await api.GET("/api/measurements/series")).data ?? [],
+  });
+
+  const typeList: MeasurementTypeOut[] = types.data ?? [];
+  const seriesList: MeasurementSeriesOut[] = series.data ?? [];
+  const activeTypeId = typeId ?? typeList[0]?.id ?? null;
+  const activeType = typeList.find((t) => t.id === activeTypeId) ?? null;
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["measurement-types"] });
+    qc.invalidateQueries({ queryKey: ["measurement-series"] });
+  };
+
+  const logEntry = useMutation({
+    mutationFn: async () => {
+      if (activeTypeId == null) throw new Error("Pick a measurement");
+      const { error } = await api.POST("/api/measurements/entries", {
+        body: { type_id: activeTypeId, date, value: Number(value) },
+      });
+      if (error) throw new Error("Could not save measurement");
+    },
+    onSuccess: () => {
+      setValue("");
+      invalidate();
+    },
+  });
+
+  const addType = useMutation({
+    mutationFn: async () => {
+      const { error } = await api.POST("/api/measurements/types", {
+        body: { label: newLabel, unit: "cm" },
+      });
+      if (error) throw new Error("Name already exists or is invalid");
+    },
+    onSuccess: () => {
+      setNewLabel("");
+      invalidate();
+    },
+  });
+
+  const removeType = useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await api.DELETE("/api/measurements/types/{type_id}", {
+        params: { path: { type_id: id } },
+      });
+      if (error) throw new Error("Could not delete");
+    },
+    onSuccess: invalidate,
+  });
+
+  const chartSeries =
+    seriesList.find((s) => s.type.id === (chartTypeId ?? seriesList[0]?.type.id)) ?? null;
+  const chartData = chartSeries ? measurementChartData(chartSeries) : [];
+
+  return (
+    <Card className="flex flex-col gap-3">
+      <h2 className="font-semibold">Body measurements</h2>
+
+      {/* Per-type latest + change tiles */}
+      {seriesList.length > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {seriesList.map((s) => (
+            <button
+              key={s.type.id}
+              onClick={() => setChartTypeId(s.type.id)}
+              className="rounded-lg bg-zinc-50 p-3 text-left dark:bg-zinc-950"
+            >
+              <div className="text-xs text-zinc-500">{s.type.label}</div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-lg font-bold tabular-nums">
+                  {formatLatest(s.latest, s.type.unit)}
+                </span>
+                <span className={`text-xs font-medium ${changeTone(s.change)}`}>
+                  {formatChange(s.change, s.type.unit)}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Trend chart for the selected type */}
+      {chartSeries && chartData.length >= 2 ? (
+        <div>
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            {chartSeries.type.label} · {chartSeries.type.unit}
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={chartData} margin={{ left: -10, right: 8, top: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" fontSize={11} />
+              <YAxis domain={["auto", "auto"]} fontSize={11} />
+              <Tooltip />
+              <Line type="monotone" dataKey="value" stroke="#8b5cf6" strokeWidth={2} dot />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-500">
+          Log a measurement on two or more dates to see its trend.
+        </p>
+      )}
+
+      {/* Log a value */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <div>
+          <Label>Measurement</Label>
+          <Select
+            value={activeTypeId ?? ""}
+            onChange={(e) => setTypeId(Number(e.target.value))}
+            aria-label="Select measurement"
+          >
+            {typeList.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label>Value{activeType ? ` (${activeType.unit})` : ""}</Label>
+          <Input
+            type="number"
+            step="0.1"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+        </div>
+        <Button
+          onClick={() => logEntry.mutate()}
+          disabled={logEntry.isPending || value === "" || activeTypeId == null}
+        >
+          {logEntry.isPending ? "Saving…" : "Log"}
+        </Button>
+      </div>
+      <div>
+        <Label>Date</Label>
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      </div>
+      {logEntry.isError && (
+        <p className="text-sm text-red-600">{logEntry.error.message}</p>
+      )}
+
+      {/* Add a custom measurement type */}
+      <div className="border-t border-zinc-100 pt-3 dark:border-zinc-800">
+        <Label>Add a custom measurement</Label>
+        <div className="flex gap-2">
+          <Input
+            placeholder="e.g. Forearm"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+          />
+          <Button
+            variant="secondary"
+            onClick={() => addType.mutate()}
+            disabled={addType.isPending || newLabel.trim() === ""}
+          >
+            Add
+          </Button>
+        </div>
+        {addType.isError && <p className="mt-1 text-sm text-red-600">{addType.error.message}</p>}
+        <div className="mt-2 flex flex-wrap gap-1">
+          {typeList
+            .filter((t) => !t.builtin)
+            .map((t) => (
+              <Badge key={t.id} className="gap-1">
+                {t.label}
+                <button
+                  onClick={() => removeType.mutate(t.id)}
+                  aria-label={`Delete ${t.label}`}
+                  className="ml-1 text-zinc-400 hover:text-red-600"
+                >
+                  ×
+                </button>
+              </Badge>
+            ))}
+        </div>
+      </div>
+    </Card>
   );
 }
 
