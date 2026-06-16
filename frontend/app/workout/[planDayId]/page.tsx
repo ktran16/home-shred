@@ -17,7 +17,12 @@ import {
   type PlanExerciseOut,
   type SuggestedTargetOut,
 } from "@/lib/api";
-import { exerciseInstructions, movementLabel, primaryMuscleText } from "@/lib/exercise-cues";
+import {
+  exerciseInstructions,
+  movementLabel,
+  primaryMuscleText,
+  warmupDrillGuide,
+} from "@/lib/exercise-cues";
 import {
   estimatedOneRm,
   formatHistoryDate,
@@ -293,29 +298,74 @@ function WarmupPanel({
   drills: string[];
   speak: (text: string, force?: boolean) => void;
 }) {
+  const guides = drills.map(warmupDrillGuide);
+
   return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="font-semibold">Warm-up</h2>
-          <p className="text-sm text-zinc-500">Move through these before your first work set.</p>
+    <Card className="grid gap-4 xl:grid-cols-[280px_1fr]">
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="text-xs font-medium uppercase text-zinc-500">Warm-up guide</div>
+            <h2 className="mt-0.5 font-semibold">Raise, rehearse, ramp</h2>
+          </div>
+          <Button
+            variant="secondary"
+            className="h-9 min-h-0 px-3 text-sm"
+            onClick={() => speak(warmupVoiceCue(drills), true)}
+          >
+            Play
+          </Button>
         </div>
-        <Button
-          variant="secondary"
-          className="h-9 min-h-0 px-3 text-sm"
-          onClick={() => speak(warmupVoiceCue(drills), true)}
-        >
-          Play warm-up
-        </Button>
+        <div className="mt-4 grid gap-3">
+          {[
+            ["Raise", "breathe and build heat"],
+            ["Rehearse", "move through today's patterns"],
+            ["Ramp", "one easy set before work"],
+          ].map(([label, detail], index) => (
+            <div key={label} className="grid grid-cols-[34px_1fr] gap-3">
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                  index === 0
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                    : index === 1
+                      ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                }`}
+              >
+                {index + 1}
+              </span>
+              <div>
+                <div className="text-sm font-semibold">{label}</div>
+                <div className="text-xs text-zinc-500">{detail}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+          Keep every drill easy. The goal is better positions, not fatigue.
+        </p>
       </div>
-      <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {drills.map((drill, index) => (
+      <ol className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {guides.map((guide, index) => (
           <li
-            key={`${drill}-${index}`}
+            key={`${guide.name}-${index}`}
             className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
           >
-            <span className="mr-2 font-semibold text-zinc-400">{index + 1}</span>
-            {drill}
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-semibold">{guide.name}</span>
+              <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-zinc-500 dark:bg-zinc-900">
+                {guide.duration}
+              </span>
+            </div>
+            <div className="my-3 grid grid-cols-[1fr_1fr_1fr] gap-1" aria-hidden="true">
+              <span className="h-1.5 rounded-full bg-emerald-500" />
+              <span className="h-1.5 rounded-full bg-sky-500" />
+              <span className="h-1.5 rounded-full bg-amber-500" />
+            </div>
+            <p className="text-zinc-600 dark:text-zinc-400">{guide.intent}</p>
+            <p className="mt-2 border-l-2 border-emerald-500 pl-2 font-medium text-zinc-800 dark:text-zinc-200">
+              {guide.cue}
+            </p>
           </li>
         ))}
       </ol>
@@ -423,7 +473,7 @@ function ExerciseBlock({
   if (pe.is_conditioning) {
     return (
       <Card className="flex flex-col gap-4">
-        <div className="grid gap-4 md:grid-cols-[180px_1fr]">
+        <div className="grid gap-4 md:grid-cols-[280px_1fr]">
           <MovementCue pattern={exercise.pattern} />
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -452,7 +502,7 @@ function ExerciseBlock({
 
   return (
     <Card className="flex flex-col gap-4">
-      <div className="grid gap-4 md:grid-cols-[180px_1fr]">
+      <div className="grid gap-4 md:grid-cols-[280px_1fr]">
         <MovementCue pattern={exercise.pattern} />
         <div className="flex flex-col gap-3">
           <div>

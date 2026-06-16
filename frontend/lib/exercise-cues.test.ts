@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { exerciseInstructions, movementLabel, primaryMuscleText } from "@/lib/exercise-cues";
+import {
+  exerciseInstructions,
+  movementGuide,
+  movementLabel,
+  primaryMuscleText,
+  warmupDrillGuide,
+} from "@/lib/exercise-cues";
 
 const exercise = {
   id: 1,
@@ -31,5 +37,21 @@ describe("exercise cues", () => {
   it("formats movement metadata", () => {
     expect(movementLabel("horizontal_push")).toBe("Push");
     expect(primaryMuscleText(exercise)).toBe("chest, triceps");
+  });
+
+  it("returns pattern-specific movement guidance", () => {
+    expect(movementGuide("squat")).toMatchObject({
+      label: "Squat",
+      tempo: "3-1-1",
+    });
+    expect(movementGuide(null).label).toBe("Strength");
+  });
+
+  it("describes warm-up drills", () => {
+    expect(warmupDrillGuide("Dead bugs")).toMatchObject({
+      duration: "6 each side",
+      intent: expect.stringContaining("trunk"),
+    });
+    expect(warmupDrillGuide("Unknown drill").cue).toBe("Keep it easy and controlled.");
   });
 });
