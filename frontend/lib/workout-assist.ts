@@ -1,4 +1,5 @@
 import type { PlanExerciseOut } from "@/lib/api";
+import type { CoachLang } from "@/lib/voice-cues";
 
 type Pattern = NonNullable<PlanExerciseOut["exercise"]["pattern"]>;
 
@@ -72,10 +73,60 @@ export function warmupForExercises(exercises: PlanExerciseOut[]): string[] {
   return drills.slice(0, 6);
 }
 
-export function warmupVoiceCue(drills: string[]): string {
-  return `Warm-up. ${drills.map((drill, index) => `${index + 1}. ${drill}.`).join(" ")}`;
+// Vietnamese names for the warm-up drills (English source names live in the
+// WARMUP_GUIDES/WARMUP_BY_PATTERN tables). Used only for the spoken cue.
+const VI_DRILL_NAMES: Record<string, string> = {
+  "Nasal breathing reset": "Thở mũi để khởi động",
+  "Scapular push-ups": "Chống đẩy xương bả vai",
+  "Incline push-up ramp sets": "Chống đẩy nghiêng tăng dần",
+  "Arm circles": "Xoay vai",
+  "Light dumbbell press ramp sets": "Đẩy tạ nhẹ tăng dần",
+  "Hip hinge holds": "Giữ tư thế gập hông",
+  "Light one-arm row ramp sets": "Kéo một tay nhẹ tăng dần",
+  "Dead hangs": "Treo xà thả lỏng",
+  "Scapular pull-ups": "Kéo xà xương bả vai",
+  "Bodyweight squats": "Squat không tạ",
+  "Reverse lunges": "Chùng chân ra sau",
+  "Hip hinges": "Gập hông",
+  "Glute bridges": "Cầu mông",
+  "Dead bugs": "Bài con bọ",
+  "Plank breathing": "Plank kết hợp thở",
+  "Marching high knees": "Nâng cao gối tại chỗ",
+  "Easy mountain climbers": "Leo núi nhẹ nhàng",
+  "First exercise ramp-up set": "Hiệp khởi động bài đầu tiên",
+};
+
+const VI_READINESS: Record<string, { label: string; detail: string }> = {
+  "Recovery day": {
+    label: "Ngày phục hồi",
+    detail: "Giảm khối lượng và nghỉ lâu hơn hôm nay.",
+  },
+  "Moderate readiness": {
+    label: "Sẵn sàng vừa phải",
+    detail: "Bớt một hiệp mỗi bài và nghỉ thêm một chút.",
+  },
+  Ready: {
+    label: "Sẵn sàng",
+    detail: "Tập đúng buổi đã lên kế hoạch.",
+  },
+};
+
+export function warmupVoiceCue(drills: string[], lang: CoachLang = "en"): string {
+  const heading = lang === "vi" ? "Khởi động." : "Warm-up.";
+  const names = lang === "vi" ? drills.map((d) => VI_DRILL_NAMES[d] ?? d) : drills;
+  return `${heading} ${names.map((name, index) => `${index + 1}. ${name}.`).join(" ")}`;
 }
 
-export function readinessVoiceCue(recommendation: ReadinessRecommendation): string {
+export function readinessVoiceCue(
+  recommendation: ReadinessRecommendation,
+  lang: CoachLang = "en",
+): string {
+  if (lang === "vi") {
+    const t = VI_READINESS[recommendation.label] ?? {
+      label: recommendation.label,
+      detail: recommendation.detail,
+    };
+    return `Mức sẵn sàng ${recommendation.score} phần trăm. ${t.label}. ${t.detail}`;
+  }
   return `Readiness ${recommendation.score} percent. ${recommendation.label}. ${recommendation.detail}`;
 }

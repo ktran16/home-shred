@@ -34,7 +34,14 @@ import {
   formatSessionNotes,
   type LoggedSetSummary,
 } from "@/lib/session-summary";
-import { exerciseVoiceCue, restCompleteCue, restStartedCue } from "@/lib/voice-cues";
+import {
+  COACH_STRINGS,
+  type CoachLang,
+  exerciseVoiceCue,
+  pickCoachVoice,
+  restCompleteCue,
+  restStartedCue,
+} from "@/lib/voice-cues";
 import {
   readinessRecommendation,
   readinessVoiceCue,
@@ -134,7 +141,7 @@ function Runner({ day }: { day: PlanDayOut }) {
       log,
     ]);
     setRest((r) => ({ key: (r?.key ?? 0) + 1, seconds: restSeconds }));
-    voice.speak(restStartedCue(restSeconds));
+    voice.speak(restStartedCue(restSeconds, voice.lang));
   };
 
   if (create.isPending || sessionId == null) {
@@ -160,9 +167,10 @@ function Runner({ day }: { day: PlanDayOut }) {
         setReadiness={setReadiness}
         recommendation={recommendation}
         speak={voice.speak}
+        lang={voice.lang}
       />
 
-      <WarmupPanel drills={warmup} speak={voice.speak} />
+      <WarmupPanel drills={warmup} speak={voice.speak} lang={voice.lang} />
 
       {day.exercises.map((pe) => (
         <ExerciseBlock
@@ -173,6 +181,7 @@ function Runner({ day }: { day: PlanDayOut }) {
           onSetLogged={onSetLogged}
           speak={voice.speak}
           voiceEnabled={voice.enabled}
+          lang={voice.lang}
           setReduction={recommendation.setReduction}
           restBonus={recommendation.restBonus}
         />
@@ -195,7 +204,7 @@ function Runner({ day }: { day: PlanDayOut }) {
           key={rest.key}
           seconds={rest.seconds}
           onDismiss={() => setRest(null)}
-          onComplete={() => voice.speak(restCompleteCue())}
+          onComplete={() => voice.speak(restCompleteCue(voice.lang))}
         />
       )}
     </div>
@@ -207,11 +216,13 @@ function ReadinessPanel({
   setReadiness,
   recommendation,
   speak,
+  lang,
 }: {
   readiness: Readiness;
   setReadiness: React.Dispatch<React.SetStateAction<Readiness>>;
   recommendation: ReturnType<typeof readinessRecommendation>;
   speak: (text: string, force?: boolean) => void;
+  lang: CoachLang;
 }) {
   return (
     <Card className="grid gap-4 xl:grid-cols-[1fr_260px]">
@@ -246,7 +257,7 @@ function ReadinessPanel({
         <Button
           variant="secondary"
           className="mt-3 h-9 min-h-0 w-full px-3 text-sm"
-          onClick={() => speak(readinessVoiceCue(recommendation), true)}
+          onClick={() => speak(readinessVoiceCue(recommendation, lang), true)}
         >
           Read readiness
         </Button>
@@ -294,9 +305,11 @@ function ReadinessScale({
 function WarmupPanel({
   drills,
   speak,
+  lang,
 }: {
   drills: string[];
   speak: (text: string, force?: boolean) => void;
+  lang: CoachLang;
 }) {
   const guides = drills.map(warmupDrillGuide);
 
@@ -311,7 +324,7 @@ function WarmupPanel({
           <Button
             variant="secondary"
             className="h-9 min-h-0 px-3 text-sm"
-            onClick={() => speak(warmupVoiceCue(drills), true)}
+            onClick={() => speak(warmupVoiceCue(drills, lang), true)}
           >
             Play
           </Button>
@@ -373,6 +386,8 @@ function WarmupPanel({
   );
 }
 
+const COACH_LANG_KEY = "homeshred.coachLang";
+
 function useVoiceCoach() {
   const [enabled, setEnabled] = useState(false);
   const [supported] = useState(
@@ -381,28 +396,61 @@ function useVoiceCoach() {
       "speechSynthesis" in window &&
       "SpeechSynthesisUtterance" in window,
   );
+  // The voice coach only renders client-side (the page shows a loading state
+  // through hydration), so reading localStorage in the initializer is safe.
+  const [lang, setLangState] = useState<CoachLang>(() => {
+    if (typeof window === "undefined") return "en";
+    return window.localStorage.getItem(COACH_LANG_KEY) === "vi" ? "vi" : "en";
+  });
+  const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
+
+  const setLang = (next: CoachLang) => {
+    setLangState(next);
+    window.localStorage.setItem(COACH_LANG_KEY, next);
+  };
 
   useEffect(() => {
-    return () => window.speechSynthesis?.cancel();
-  }, []);
+    if (!supported) return;
+    // getVoices() is often empty until the engine fires "voiceschanged".
+    const loadVoice = () => {
+      voiceRef.current = pickCoachVoice(window.speechSynthesis.getVoices());
+    };
+    loadVoice();
+    window.speechSynthesis.addEventListener("voiceschanged", loadVoice);
+    return () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", loadVoice);
+      window.speechSynthesis.cancel();
+    };
+  }, [supported]);
 
   const speak = (text: string, force = false) => {
     if ((!enabled && !force) || !supported) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
+    const voice = voiceRef.current;
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang;
+    } else {
+      utterance.lang = "en-US";
+    }
+    // Natural voices read well near real-time; a hair of extra pitch + slightly
+    // softer rate avoids the clipped, monotone "robot" cadence.
+    utterance.rate = 1;
+    utterance.pitch = 1.05;
+    utterance.volume = 1;
     window.speechSynthesis.speak(utterance);
   };
 
   const stop = () => window.speechSynthesis?.cancel();
 
-  return { enabled, setEnabled, supported, speak, stop };
+  return { enabled, setEnabled, supported, speak, stop, lang, setLang };
 }
 
 function VoiceCoachControls({ voice }: { voice: ReturnType<typeof useVoiceCoach> }) {
+  const t = COACH_STRINGS[voice.lang];
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-900">
       <Button
         className="h-9 min-h-0 px-3 text-sm"
         variant={voice.enabled ? "primary" : "secondary"}
@@ -411,20 +459,41 @@ function VoiceCoachControls({ voice }: { voice: ReturnType<typeof useVoiceCoach>
           const next = !voice.enabled;
           voice.setEnabled(next);
           if (!next) voice.stop();
-          if (next) setTimeout(() => voice.speak("Voice coach enabled.", true), 0);
+          if (next) setTimeout(() => voice.speak(COACH_STRINGS[voice.lang].enabled, true), 0);
         }}
       >
-        {voice.enabled ? "Voice on" : "Voice off"}
+        {voice.enabled ? t.on : t.off}
       </Button>
       <Button
         className="h-9 min-h-0 px-3 text-sm"
         variant="ghost"
         disabled={!voice.supported}
-        onClick={() => voice.speak("Voice coach ready.", true)}
+        onClick={() => voice.speak(t.ready, true)}
       >
-        Test
+        {t.test}
       </Button>
-      {!voice.supported && <span className="text-xs text-zinc-500">Not supported</span>}
+      <div
+        className="flex overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700"
+        role="group"
+        aria-label="Cue language"
+      >
+        {(["en", "vi"] as const).map((code) => (
+          <button
+            key={code}
+            type="button"
+            onClick={() => voice.setLang(code)}
+            className={`px-2.5 py-1.5 text-xs font-semibold uppercase transition-colors ${
+              voice.lang === code
+                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                : "bg-transparent text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            }`}
+            aria-pressed={voice.lang === code}
+          >
+            {code === "en" ? "EN" : "VI"}
+          </button>
+        ))}
+      </div>
+      {!voice.supported && <span className="text-xs text-zinc-500">{t.notSupported}</span>}
     </div>
   );
 }
@@ -436,6 +505,7 @@ function ExerciseBlock({
   onSetLogged,
   speak,
   voiceEnabled,
+  lang,
   setReduction,
   restBonus,
 }: {
@@ -445,6 +515,7 @@ function ExerciseBlock({
   onSetLogged: (rest: number, log: LoggedSetSummary) => void;
   speak: (text: string, force?: boolean) => void;
   voiceEnabled: boolean;
+  lang: CoachLang;
   setReduction: number;
   restBonus: number;
 }) {
@@ -484,7 +555,7 @@ function ExerciseBlock({
               <Button
                 variant="secondary"
                 className="h-8 min-h-0 px-2 text-xs"
-                onClick={() => speak(exerciseVoiceCue(effectivePe, sets), true)}
+                onClick={() => speak(exerciseVoiceCue(effectivePe, sets, lang), true)}
               >
                 Play cues
               </Button>
@@ -514,7 +585,7 @@ function ExerciseBlock({
               <Button
                 variant="secondary"
                 className="h-8 min-h-0 px-2 text-xs"
-                onClick={() => speak(exerciseVoiceCue(effectivePe, sets), true)}
+                onClick={() => speak(exerciseVoiceCue(effectivePe, sets, lang), true)}
               >
                 Play cues
               </Button>

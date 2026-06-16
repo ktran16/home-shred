@@ -59,4 +59,11 @@ describe("workout assist helpers", () => {
     expect(readinessVoiceCue(recommendation)).toContain("Readiness 100 percent");
     expect(warmupVoiceCue(["Dead bugs"])).toContain("1. Dead bugs.");
   });
+
+  it("formats Vietnamese voice prompts", () => {
+    const recommendation = readinessRecommendation({ energy: 5, sleep: 5, soreness: 1 });
+    expect(readinessVoiceCue(recommendation, "vi")).toContain("Mức sẵn sàng 100 phần trăm");
+    expect(readinessVoiceCue(recommendation, "vi")).toContain("Sẵn sàng");
+    expect(warmupVoiceCue(["Dead bugs"], "vi")).toBe("Khởi động. 1. Bài con bọ.");
+  });
 });

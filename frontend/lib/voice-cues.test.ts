@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanExerciseOut } from "@/lib/api";
-import { exerciseVoiceCue, restCompleteCue, restStartedCue } from "@/lib/voice-cues";
+import {
+  exerciseVoiceCue,
+  pickCoachVoice,
+  restCompleteCue,
+  restStartedCue,
+} from "@/lib/voice-cues";
+
+const voice = (
+  name: string,
+  lang: string,
+  localService = true,
+): SpeechSynthesisVoice =>
+  ({ name, lang, localService, default: false, voiceURI: name }) as SpeechSynthesisVoice;
 
 const pe = {
   id: 1,
@@ -36,5 +48,42 @@ describe("voice cues", () => {
   it("formats rest cues", () => {
     expect(restStartedCue(75)).toBe("Set logged. Rest 75 seconds.");
     expect(restCompleteCue()).toBe("Rest complete. Start your next set.");
+  });
+
+  it("formats Vietnamese cues when lang is vi", () => {
+    const cue = exerciseVoiceCue(pe, 3, "vi");
+    expect(cue).toContain("Push-Up. Đẩy ngang. 3 hiệp.");
+    expect(cue).toContain("Lưu ý.");
+    // seeded English instructions are not spoken in Vietnamese
+    expect(cue).not.toContain("Brace.");
+    expect(restStartedCue(75, "vi")).toBe("Đã ghi hiệp. Nghỉ 75 giây.");
+    expect(restCompleteCue("vi")).toBe("Hết giờ nghỉ. Bắt đầu hiệp tiếp theo.");
+  });
+});
+
+describe("pickCoachVoice", () => {
+  it("returns null when no voices are available", () => {
+    expect(pickCoachVoice([])).toBeNull();
+  });
+
+  it("prefers a natural/neural English voice over a robotic default", () => {
+    const voices = [
+      voice("English (robotic)", "en-US"),
+      voice("Microsoft Aria Online (Natural)", "en-US", false),
+    ];
+    expect(pickCoachVoice(voices)?.name).toBe("Microsoft Aria Online (Natural)");
+  });
+
+  it("falls back to a network voice, then any English voice", () => {
+    const network = voice("SomeCloud Voice", "en-GB", false);
+    expect(pickCoachVoice([voice("Local en", "en-US"), network])?.name).toBe(
+      "SomeCloud Voice",
+    );
+    expect(pickCoachVoice([voice("Local en", "en-GB")])?.name).toBe("Local en");
+  });
+
+  it("ignores non-English voices when an English one exists", () => {
+    const voices = [voice("Google US English", "en-US", false), voice("Amélie", "fr-FR")];
+    expect(pickCoachVoice(voices)?.lang).toBe("en-US");
   });
 });
