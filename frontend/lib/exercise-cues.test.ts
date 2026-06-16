@@ -47,6 +47,14 @@ describe("exercise cues", () => {
     expect(movementGuide(null).label).toBe("Strength");
   });
 
+  it("returns Vietnamese instructions, label, and guide when lang is vi", () => {
+    // seeded English instructions are ignored in favour of VI pattern cues
+    expect(exerciseInstructions(exercise, 2, "vi")).toEqual(["Siết bụng, hạ sườn.", "Hạ người có kiểm soát."]);
+    expect(movementLabel("horizontal_push", "vi")).toBe("Đẩy ngang");
+    expect(movementGuide("squat", "vi")).toMatchObject({ label: "Squat", tempo: "3-1-1" });
+    expect(movementGuide(null, "vi").label).toBe("Sức mạnh");
+  });
+
   it("describes warm-up drills", () => {
     expect(warmupDrillGuide("Dead bugs")).toMatchObject({
       duration: "6 each side",

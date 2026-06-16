@@ -12,10 +12,16 @@ SEED        := python -m app.seed.seed_exercises
 
 .DEFAULT_GOAL := help
 
+PIPER_VOICES := en/en_US/amy/medium/en_US-amy-medium.onnx \
+                en/en_US/amy/medium/en_US-amy-medium.onnx.json \
+                vi/vi_VN/vais1000/medium/vi_VN-vais1000-medium.onnx \
+                vi/vi_VN/vais1000/medium/vi_VN-vais1000-medium.onnx.json
+PIPER_BASE   := https://huggingface.co/rhasspy/piper-voices/resolve/main
+
 .PHONY: help \
-        up down logs ps restart adminer \
+        up down logs ps restart adminer tts-voices \
         prod-up prod-down prod-logs prod-ps prod-restart prod-build \
-        prod-seed prod-reset prod-shell prod-psql prod-health
+        prod-seed prod-reset prod-shell prod-psql prod-health prod-tts-voices
 
 ## ----------------------------------------------------------------------------
 ## Meta
@@ -47,6 +53,9 @@ restart: ## Restart dev stack
 
 adminer: ## Print the Adminer URL
 	@echo "Adminer: http://localhost:8080  (server: db, user: homeshred, db: homeshred)"
+
+tts-voices: ## Download Piper EN+VI voice models for dev (backend/media/tts/voices)
+	cd backend && sh scripts/fetch-piper-voices.sh media/tts/voices
 
 ## ----------------------------------------------------------------------------
 ## Prod — full stack (db + backend + frontend on :3006), reads .env.prod
@@ -82,6 +91,12 @@ prod-psql: ## Open psql in the prod db
 prod-health: ## Curl the public frontend + /api/health on :3006
 	@echo -n "FE:        "; curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3006
 	@echo -n "API health: "; curl -s http://localhost:3006/api/health; echo
+
+prod-tts-voices: ## Download Piper voice models into the prod backend media volume
+	$(PROD) exec backend sh -c 'mkdir -p /app/media/tts/voices && \
+	  for f in $(PIPER_VOICES); do \
+	    curl -fsSL -o /app/media/tts/voices/$$(basename $$f) $(PIPER_BASE)/$$f; done' \
+	  && echo "Voices downloaded into the media volume."
 
 # WARNING: drops the pgdata volume (erases the DB), then rebuilds + re-seeds.
 # Required after any DB password change — Postgres only applies POSTGRES_PASSWORD

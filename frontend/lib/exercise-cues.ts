@@ -109,6 +109,108 @@ const PATTERN_GUIDES: Record<Pattern, MovementGuide> = {
   },
 };
 
+// Vietnamese coaching text. Seeded exercise instructions are English-only, so in
+// Vietnamese we surface the pattern-based cues/guide instead of the DB strings.
+export type CueLang = "en" | "vi";
+
+const VI_PATTERN_LABELS: Record<Pattern, string> = {
+  horizontal_push: "Đẩy ngang",
+  vertical_push: "Đẩy qua đầu",
+  horizontal_pull: "Kéo ngang",
+  vertical_pull: "Kéo xà",
+  squat: "Squat",
+  hinge: "Gập hông",
+  core: "Cơ lõi",
+  conditioning: "Thể lực",
+};
+
+const VI_PATTERN_CUES: Record<Pattern, string[]> = {
+  horizontal_push: ["Siết bụng, hạ sườn.", "Hạ người có kiểm soát.", "Đẩy mạnh khỏi sàn."],
+  vertical_push: ["Xếp sườn trên hông.", "Đẩy thẳng qua đầu.", "Kết thúc với tay sát tai."],
+  horizontal_pull: ["Gập người và siết cơ.", "Kéo khuỷu tay qua sườn.", "Hạ xuống, không xoay người."],
+  vertical_pull: ["Bắt đầu từ tư thế treo thẳng tay.", "Kéo ngực về phía xà.", "Hạ đến khi tay thẳng."],
+  squat: ["Siết cơ trước khi hạ.", "Đầu gối theo hướng mũi chân.", "Đứng thẳng qua giữa bàn chân."],
+  hinge: ["Đẩy hông ra sau.", "Giữ lưng thẳng dài.", "Siết mông để đứng lên."],
+  core: ["Khóa sườn và xương chậu.", "Di chuyển chậm rãi.", "Dừng trước khi sai tư thế."],
+  conditioning: ["Giữ độ nảy.", "Thở đều.", "Nhanh nhưng giữ nhịp chuẩn."],
+};
+
+const VI_DEFAULT_MOVEMENT_GUIDE: MovementGuide = {
+  label: "Sức mạnh",
+  setup: "Khóa thân trước mỗi lần lặp.",
+  action: "Di chuyển hết tầm một cách có kiểm soát.",
+  checkpoint: "Dừng hiệp khi tư thế bị phá vỡ.",
+  tempo: "2-1-1",
+  range: "từ đầu đến cuối",
+};
+
+const VI_PATTERN_GUIDES: Record<Pattern, MovementGuide> = {
+  horizontal_push: {
+    label: "Đẩy ngang",
+    setup: "Cố định tay, hạ sườn, kiểm soát xương bả vai.",
+    action: "Hạ ngực xuống sàn rồi đẩy ra xa.",
+    checkpoint: "Khuỷu tay mở khoảng 30-45 độ so với sườn.",
+    tempo: "3-0-1",
+    range: "từ trên xuống ngực",
+  },
+  vertical_push: {
+    label: "Đẩy qua đầu",
+    setup: "Siết sườn trên hông trước khi đẩy.",
+    action: "Đẩy tạ thẳng lên qua đầu.",
+    checkpoint: "Kết thúc thẳng trục, tay sát tai.",
+    tempo: "2-0-1",
+    range: "từ vai đến khóa khớp",
+  },
+  horizontal_pull: {
+    label: "Kéo ngang",
+    setup: "Gập người, siết cơ, giữ thân yên.",
+    action: "Kéo khuỷu tay qua sườn rồi hạ có kiểm soát.",
+    checkpoint: "Không xoay người hay nhún vai ở đỉnh.",
+    tempo: "2-1-2",
+    range: "từ duỗi tay đến sườn",
+  },
+  vertical_pull: {
+    label: "Kéo xà",
+    setup: "Bắt đầu thẳng người từ tư thế treo.",
+    action: "Kéo ngực về phía xà rồi duỗi thẳng tay.",
+    checkpoint: "Dẫn bằng khuỷu tay, không phải cằm.",
+    tempo: "2-1-2",
+    range: "từ treo đến ngực",
+  },
+  squat: {
+    label: "Squat",
+    setup: "Siết cơ, bàn chân vững, dồn lực vào giữa bàn chân.",
+    action: "Ngồi xuống giữa hai hông rồi đứng thẳng.",
+    checkpoint: "Đầu gối đi theo mũi chân suốt động tác.",
+    tempo: "3-1-1",
+    range: "từ đứng đến đáy",
+  },
+  hinge: {
+    label: "Gập hông",
+    setup: "Hơi chùng gối và giữ lưng thẳng dài.",
+    action: "Đẩy hông ra sau rồi siết mông để đứng lên.",
+    checkpoint: "Cẳng chân gần như thẳng đứng khi hông ra sau.",
+    tempo: "3-1-1",
+    range: "từ đẩy hông đến đứng thẳng",
+  },
+  core: {
+    label: "Cơ lõi",
+    setup: "Khóa sườn và xương chậu trước khi di chuyển.",
+    action: "Di chuyển chậm, không để thân xoay hay võng.",
+    checkpoint: "Tiếp tục thở sau khi đã khóa thân.",
+    tempo: "đều",
+    range: "giữ khóa thân",
+  },
+  conditioning: {
+    label: "Thể lực",
+    setup: "Chọn nhịp có thể lặp lại mỗi vòng.",
+    action: "Di chuyển nhanh nhưng giữ động tác gọn gàng.",
+    checkpoint: "Thở theo nhịp và tránh tiếp đất cẩu thả.",
+    tempo: "mượt",
+    range: "nhịp lặp lại được",
+  },
+};
+
 export type WarmupDrillGuide = {
   name: string;
   duration: string;
@@ -209,15 +311,27 @@ const WARMUP_GUIDES: Record<string, Omit<WarmupDrillGuide, "name">> = {
   },
 };
 
-export function movementLabel(pattern: ExerciseOut["pattern"]): string {
+export function movementLabel(pattern: ExerciseOut["pattern"], lang: CueLang = "en"): string {
+  if (lang === "vi") return pattern ? VI_PATTERN_LABELS[pattern] : "Sức mạnh";
   return pattern ? PATTERN_LABELS[pattern] : "Strength";
 }
 
-export function movementGuide(pattern: ExerciseOut["pattern"]): MovementGuide {
+export function movementGuide(
+  pattern: ExerciseOut["pattern"],
+  lang: CueLang = "en",
+): MovementGuide {
+  if (lang === "vi") return pattern ? VI_PATTERN_GUIDES[pattern] : VI_DEFAULT_MOVEMENT_GUIDE;
   return pattern ? PATTERN_GUIDES[pattern] : DEFAULT_MOVEMENT_GUIDE;
 }
 
-export function exerciseInstructions(exercise: ExerciseOut, limit = 3): string[] {
+export function exerciseInstructions(
+  exercise: ExerciseOut,
+  limit = 3,
+  lang: CueLang = "en",
+): string[] {
+  if (lang === "vi") {
+    return exercise.pattern ? VI_PATTERN_CUES[exercise.pattern].slice(0, limit) : [];
+  }
   const seeded = exercise.instructions.filter(Boolean).slice(0, limit);
   if (seeded.length > 0) return seeded;
   return exercise.pattern ? PATTERN_CUES[exercise.pattern].slice(0, limit) : [];

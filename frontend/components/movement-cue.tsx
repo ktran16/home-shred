@@ -333,21 +333,31 @@ function MovementStage({ pattern }: { pattern: ExerciseOut["pattern"] }) {
   );
 }
 
+type CueLang = "en" | "vi";
+
+const GUIDE_LABELS: Record<CueLang, { heading: string; tempo: string; setup: string; action: string; range: string }> = {
+  en: { heading: "Movement guide", tempo: "tempo", setup: "Setup", action: "Action", range: "Range" },
+  vi: { heading: "Hướng dẫn động tác", tempo: "nhịp", setup: "Chuẩn bị", action: "Thực hiện", range: "Tầm vận động" },
+};
+
 export function MovementCue({
   pattern,
   compact = false,
+  lang = "en",
 }: {
   pattern: ExerciseOut["pattern"];
   compact?: boolean;
+  lang?: CueLang;
 }) {
-  const guide = movementGuide(pattern);
+  const guide = movementGuide(pattern, lang);
+  const labels = GUIDE_LABELS[lang];
 
   if (compact) {
     return (
       <div
         className="motion-cue relative h-16 w-24 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950"
         data-pattern={pattern ?? "strength"}
-        aria-label={`${movementLabel(pattern)} movement cue`}
+        aria-label={`${movementLabel(pattern, lang)} movement cue`}
       >
         <MovementStage pattern={pattern} />
         <div className="absolute bottom-1.5 left-2 right-2 truncate rounded-full bg-white/90 px-2 py-0.5 text-center text-[10px] font-semibold text-zinc-700 shadow-sm dark:bg-zinc-900/90 dark:text-zinc-200">
@@ -361,32 +371,32 @@ export function MovementCue({
     <div
       className="motion-cue overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950"
       data-pattern={pattern ?? "strength"}
-      aria-label={`${movementLabel(pattern)} movement cue`}
+      aria-label={`${movementLabel(pattern, lang)} movement cue`}
     >
       <div className="relative h-48 w-full">
         <MovementStage pattern={pattern} />
         <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
           <div>
-            <div className="text-xs font-medium uppercase text-zinc-500">Movement guide</div>
+            <div className="text-xs font-medium uppercase text-zinc-500">{labels.heading}</div>
             <div className="mt-0.5 text-lg font-bold">{guide.label}</div>
           </div>
           <div className="rounded-full border border-zinc-200 bg-white/90 px-2 py-1 text-xs font-semibold text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/90 dark:text-zinc-200">
-            tempo {guide.tempo}
+            {labels.tempo} {guide.tempo}
           </div>
         </div>
       </div>
       <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
         <dl className="grid gap-2 text-sm">
           <div>
-            <dt className="text-xs font-semibold uppercase text-zinc-500">Setup</dt>
+            <dt className="text-xs font-semibold uppercase text-zinc-500">{labels.setup}</dt>
             <dd className="text-zinc-800 dark:text-zinc-200">{guide.setup}</dd>
           </div>
           <div>
-            <dt className="text-xs font-semibold uppercase text-zinc-500">Action</dt>
+            <dt className="text-xs font-semibold uppercase text-zinc-500">{labels.action}</dt>
             <dd className="text-zinc-800 dark:text-zinc-200">{guide.action}</dd>
           </div>
           <div>
-            <dt className="text-xs font-semibold uppercase text-zinc-500">Range</dt>
+            <dt className="text-xs font-semibold uppercase text-zinc-500">{labels.range}</dt>
             <dd className="text-zinc-800 dark:text-zinc-200">
               {guide.range}. {guide.checkpoint}
             </dd>

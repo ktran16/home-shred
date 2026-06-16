@@ -403,6 +403,7 @@ function useVoiceCoach() {
     return window.localStorage.getItem(COACH_LANG_KEY) === "vi" ? "vi" : "en";
   });
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const setLang = (next: CoachLang) => {
     setLangState(next);
@@ -423,26 +424,46 @@ function useVoiceCoach() {
     };
   }, [supported]);
 
-  const speak = (text: string, force = false) => {
-    if ((!enabled && !force) || !supported) return;
+  // Fallback: the browser's own speech synthesis (quality varies by device).
+  const speakBrowser = (text: string) => {
+    if (!supported) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    const voice = voiceRef.current;
-    if (voice) {
-      utterance.voice = voice;
-      utterance.lang = voice.lang;
+    if (lang === "vi") {
+      utterance.lang = "vi-VN";
+    } else if (voiceRef.current) {
+      utterance.voice = voiceRef.current;
+      utterance.lang = voiceRef.current.lang;
     } else {
       utterance.lang = "en-US";
     }
-    // Natural voices read well near real-time; a hair of extra pitch + slightly
-    // softer rate avoids the clipped, monotone "robot" cadence.
     utterance.rate = 1;
     utterance.pitch = 1.05;
     utterance.volume = 1;
     window.speechSynthesis.speak(utterance);
   };
 
-  const stop = () => window.speechSynthesis?.cancel();
+  const speak = (text: string, force = false) => {
+    if ((!enabled && !force) || !text.trim()) return;
+    window.speechSynthesis?.cancel();
+    let audio = audioRef.current;
+    if (!audio) {
+      audio = new Audio();
+      audioRef.current = audio;
+    }
+    audio.pause();
+    // Prefer the server-side neural voice (consistent quality, real Vietnamese);
+    // fall back to the browser engine if the endpoint is unavailable (TTS disabled,
+    // voice model missing, or offline).
+    audio.onerror = () => speakBrowser(text);
+    audio.src = `/api/tts?lang=${lang}&text=${encodeURIComponent(text)}`;
+    void audio.play().catch(() => speakBrowser(text));
+  };
+
+  const stop = () => {
+    window.speechSynthesis?.cancel();
+    audioRef.current?.pause();
+  };
 
   return { enabled, setEnabled, supported, speak, stop, lang, setLang };
 }
@@ -538,19 +559,19 @@ function ExerciseBlock({
   const lastTopWeight = lastSession ? (topSet(lastSession)?.weightKg ?? null) : null;
   // Fall back to last session's top-set weight when progression gives no suggestion.
   const weightDefault = target?.suggested_weight_kg ?? lastTopWeight;
-  const instructions = exerciseInstructions(exercise);
+  const instructions = exerciseInstructions(exercise, 3, lang);
   const restSeconds = pe.rest_seconds + restBonus;
 
   if (pe.is_conditioning) {
     return (
       <Card className="flex flex-col gap-4">
         <div className="grid gap-4 md:grid-cols-[280px_1fr]">
-          <MovementCue pattern={exercise.pattern} />
+          <MovementCue pattern={exercise.pattern} lang={lang} />
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold">{exercise.name}</span>
               <Badge>conditioning</Badge>
-              <Badge>{movementLabel(exercise.pattern)}</Badge>
+              <Badge>{movementLabel(exercise.pattern, lang)}</Badge>
               {setReduction > 0 && <Badge>adjusted</Badge>}
               <Button
                 variant="secondary"
@@ -574,12 +595,12 @@ function ExerciseBlock({
   return (
     <Card className="flex flex-col gap-4">
       <div className="grid gap-4 md:grid-cols-[280px_1fr]">
-        <MovementCue pattern={exercise.pattern} />
+        <MovementCue pattern={exercise.pattern} lang={lang} />
         <div className="flex flex-col gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold">{exercise.name}</span>
-              <Badge>{movementLabel(exercise.pattern)}</Badge>
+              <Badge>{movementLabel(exercise.pattern, lang)}</Badge>
               {voiceEnabled && <Badge>voice ready</Badge>}
               {setReduction > 0 && <Badge>adjusted</Badge>}
               <Button

@@ -16,9 +16,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 # --- Stage 2: runtime ---
 FROM python:3.12-slim AS runtime
 
-# curl for the compose healthcheck.
+# curl for the compose healthcheck; libgomp1 is required by onnxruntime (Piper TTS).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 appuser
 

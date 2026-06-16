@@ -13,6 +13,9 @@ All run on-device or in-process — no cloud, CPU-only friendly:
 - **Exercise search** (`/exercises`): "a hamstring exercise like an RDL".
 - **Barcode food lookup** (`/nutrition`): scan a barcode → macros (via Open Food Facts).
 - **Food log** (`/nutrition`): manual/barcode entries with daily totals and remaining macros.
+- **Voice coach** (`/workout`): server-side neural TTS (Piper) reads cues in English or
+  Vietnamese. Download the voice models once with `make tts-voices` (dev) /
+  `make prod-tts-voices` (prod); without them it falls back to browser speech.
 
 What's next is brainstormed in `SPEC.md §19` (ops hardening → PWA/offline → plan lifecycle).
 
@@ -34,6 +37,9 @@ uv run uvicorn app.main:app --reload --port 8000
 cd frontend
 pnpm install
 pnpm dev
+
+# 4. (optional) Voice-coach TTS models for English + Vietnamese
+make tts-voices
 ```
 
 The frontend proxies `/api/*` to the backend, so open `http://localhost:3000`.
@@ -57,6 +63,9 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 # first deploy only — seed the exercise catalogue (idempotent):
 docker compose -f docker-compose.prod.yml run --rm backend python -m app.seed.seed_exercises
+
+# first deploy only — download the voice-coach TTS models into the media volume:
+make prod-tts-voices
 ```
 
 The backend container applies Alembic migrations on start. Open

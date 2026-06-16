@@ -17,7 +17,11 @@ services:
     build: ./backend
     env_file: .env.prod
     environment:
-      MEDIA_DIR: /app/media # progress photos (SPEC §19.8 W3); persisted on the volume below
+      MEDIA_DIR: /app/media # progress photos + Piper TTS voices/cache; persisted on the volume below
+      # Voice-coach TTS is on by default; voice models live under MEDIA_DIR/tts/voices.
+      # After first deploy run `make prod-tts-voices` to populate them (until then the
+      # frontend falls back to browser speech). Set TTS_ENABLED=false to disable.
+      TTS_ENABLED: "true"
     depends_on:
       db:
         condition: service_healthy

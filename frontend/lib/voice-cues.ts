@@ -1,57 +1,19 @@
-import type { ExerciseOut, PlanExerciseOut } from "@/lib/api";
+import type { PlanExerciseOut } from "@/lib/api";
 import { exerciseInstructions, movementLabel } from "@/lib/exercise-cues";
 
 // The voice-over text can be read in English or Vietnamese. The synthesized
 // voice itself stays whatever the browser picks (typically English) — only the
-// wording changes.
+// wording changes. Vietnamese cue text lives alongside the English source in
+// exercise-cues.ts so the on-screen guide and the spoken cue stay in sync.
 export type CoachLang = "en" | "vi";
-
-type Pattern = NonNullable<ExerciseOut["pattern"]>;
-
-const VI_PATTERN_LABELS: Record<Pattern, string> = {
-  horizontal_push: "Đẩy ngang",
-  vertical_push: "Đẩy qua đầu",
-  horizontal_pull: "Kéo ngang",
-  vertical_pull: "Kéo xà",
-  squat: "Squat",
-  hinge: "Gập hông",
-  core: "Cơ lõi",
-  conditioning: "Thể lực",
-};
-
-// Vietnamese equivalents of the pattern coaching cues in exercise-cues.ts.
-// Seeded exercise instructions are English-only, so for Vietnamese we speak the
-// pattern-based cues instead.
-const VI_PATTERN_CUES: Record<Pattern, string[]> = {
-  horizontal_push: ["Siết bụng, hạ sườn.", "Hạ người có kiểm soát.", "Đẩy mạnh khỏi sàn."],
-  vertical_push: ["Xếp sườn trên hông.", "Đẩy thẳng qua đầu.", "Kết thúc với tay sát tai."],
-  horizontal_pull: ["Gập người và siết cơ.", "Kéo khuỷu tay qua sườn.", "Hạ xuống, không xoay người."],
-  vertical_pull: ["Bắt đầu từ tư thế treo thẳng tay.", "Kéo ngực về phía xà.", "Hạ đến khi tay thẳng."],
-  squat: ["Siết cơ trước khi hạ.", "Đầu gối theo hướng mũi chân.", "Đứng thẳng qua giữa bàn chân."],
-  hinge: ["Đẩy hông ra sau.", "Giữ lưng thẳng dài.", "Siết mông để đứng lên."],
-  core: ["Khóa sườn và xương chậu.", "Di chuyển chậm rãi.", "Dừng trước khi sai tư thế."],
-  conditioning: ["Giữ độ nảy.", "Thở đều.", "Nhanh nhưng giữ nhịp chuẩn."],
-};
-
-function voiceMovementLabel(pattern: ExerciseOut["pattern"], lang: CoachLang): string {
-  if (lang === "vi") return pattern ? VI_PATTERN_LABELS[pattern] : "Sức mạnh";
-  return movementLabel(pattern);
-}
-
-function voiceInstructions(exercise: ExerciseOut, lang: CoachLang, limit = 3): string[] {
-  if (lang === "vi") {
-    return exercise.pattern ? VI_PATTERN_CUES[exercise.pattern].slice(0, limit) : [];
-  }
-  return exerciseInstructions(exercise, limit);
-}
 
 export function exerciseVoiceCue(
   pe: PlanExerciseOut,
   sets: number,
   lang: CoachLang = "en",
 ): string {
-  const instructions = voiceInstructions(pe.exercise, lang, 3);
-  const label = voiceMovementLabel(pe.exercise.pattern, lang);
+  const instructions = exerciseInstructions(pe.exercise, 3, lang);
+  const label = movementLabel(pe.exercise.pattern, lang);
   if (lang === "vi") {
     const prescription = pe.is_conditioning
       ? `${sets} hiệp. Tập 40 giây, nghỉ 20 giây.`

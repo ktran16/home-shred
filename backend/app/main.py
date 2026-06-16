@@ -11,6 +11,7 @@ from app.api import (
     profile,
     progress,
     sessions,
+    tts,
 )
 from app.config import get_settings
 
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
         body_metrics.router,
         measurements.router,
         nutrition.router,
+        tts.router,
     ]
     for router in api_routers:
         app.include_router(router, prefix="/api")
