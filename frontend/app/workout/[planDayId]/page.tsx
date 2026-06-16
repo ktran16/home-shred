@@ -302,6 +302,40 @@ function ReadinessScale({
   );
 }
 
+const WARMUP_UI: Record<
+  CoachLang,
+  {
+    heading: string;
+    title: string;
+    play: string;
+    steps: [string, string][];
+    footer: string;
+  }
+> = {
+  en: {
+    heading: "Warm-up guide",
+    title: "Raise, rehearse, ramp",
+    play: "Play",
+    steps: [
+      ["Raise", "breathe and build heat"],
+      ["Rehearse", "move through today's patterns"],
+      ["Ramp", "one easy set before work"],
+    ],
+    footer: "Keep every drill easy. The goal is better positions, not fatigue.",
+  },
+  vi: {
+    heading: "Hướng dẫn khởi động",
+    title: "Làm nóng, tập thử, tăng dần",
+    play: "Phát",
+    steps: [
+      ["Làm nóng", "thở và tăng nhiệt"],
+      ["Tập thử", "đi qua các động tác hôm nay"],
+      ["Tăng dần", "một hiệp nhẹ trước khi tập"],
+    ],
+    footer: "Giữ mọi bài tập nhẹ nhàng. Mục tiêu là tư thế tốt hơn, không phải mệt mỏi.",
+  },
+};
+
 function WarmupPanel({
   drills,
   speak,
@@ -311,30 +345,27 @@ function WarmupPanel({
   speak: (text: string, force?: boolean) => void;
   lang: CoachLang;
 }) {
-  const guides = drills.map(warmupDrillGuide);
+  const guides = drills.map((drill) => warmupDrillGuide(drill, lang));
+  const ui = WARMUP_UI[lang];
 
   return (
     <Card className="grid gap-4 xl:grid-cols-[280px_1fr]">
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <div className="text-xs font-medium uppercase text-zinc-500">Warm-up guide</div>
-            <h2 className="mt-0.5 font-semibold">Raise, rehearse, ramp</h2>
+            <div className="text-xs font-medium uppercase text-zinc-500">{ui.heading}</div>
+            <h2 className="mt-0.5 font-semibold">{ui.title}</h2>
           </div>
           <Button
             variant="secondary"
             className="h-9 min-h-0 px-3 text-sm"
             onClick={() => speak(warmupVoiceCue(drills, lang), true)}
           >
-            Play
+            {ui.play}
           </Button>
         </div>
         <div className="mt-4 grid gap-3">
-          {[
-            ["Raise", "breathe and build heat"],
-            ["Rehearse", "move through today's patterns"],
-            ["Ramp", "one easy set before work"],
-          ].map(([label, detail], index) => (
+          {ui.steps.map(([label, detail], index) => (
             <div key={label} className="grid grid-cols-[34px_1fr] gap-3">
               <span
                 className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
@@ -354,9 +385,7 @@ function WarmupPanel({
             </div>
           ))}
         </div>
-        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-          Keep every drill easy. The goal is better positions, not fatigue.
-        </p>
+        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">{ui.footer}</p>
       </div>
       <ol className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {guides.map((guide, index) => (

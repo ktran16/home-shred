@@ -62,4 +62,12 @@ describe("exercise cues", () => {
     });
     expect(warmupDrillGuide("Unknown drill").cue).toBe("Keep it easy and controlled.");
   });
+
+  it("describes warm-up drills in Vietnamese", () => {
+    expect(warmupDrillGuide("Dead bugs", "vi")).toMatchObject({
+      name: "Bài con bọ",
+      duration: "6 mỗi bên",
+    });
+    expect(warmupDrillGuide("Unknown drill", "vi").cue).toBe("Giữ nhẹ nhàng và có kiểm soát.");
+  });
 });

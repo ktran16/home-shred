@@ -341,7 +341,130 @@ export function primaryMuscleText(exercise: ExerciseOut): string {
   return exercise.primary_muscles.slice(0, 3).join(", ");
 }
 
-export function warmupDrillGuide(name: string): WarmupDrillGuide {
+// Vietnamese warm-up guides (name + duration/intent/cue), keyed by the English
+// drill name produced by warmupForExercises().
+const VI_WARMUP_GUIDES: Record<string, WarmupDrillGuide> = {
+  "Nasal breathing reset": {
+    name: "Thở mũi để khởi động",
+    duration: "4-5 nhịp thở",
+    intent: "Hạ nhịp và tìm hơi thở ra trọn vẹn trước khi tập.",
+    cue: "Thở ra đến khi sườn hạ xuống, rồi hít vào nhẹ nhàng bằng mũi.",
+  },
+  "Scapular push-ups": {
+    name: "Chống đẩy xương bả vai",
+    duration: "8-10 lần",
+    intent: "Làm nóng khả năng kiểm soát xương bả vai cho động tác đẩy.",
+    cue: "Giữ khuỷu tay thẳng và chỉ di chuyển xương bả vai.",
+  },
+  "Incline push-up ramp sets": {
+    name: "Chống đẩy nghiêng tăng dần",
+    duration: "1 hiệp nhẹ",
+    intent: "Tập lại động tác đẩy mà không gây mệt.",
+    cue: "Đặt tay cao hơn và dừng khi vẫn còn sức.",
+  },
+  "Arm circles": {
+    name: "Xoay vai",
+    duration: "20 giây mỗi chiều",
+    intent: "Mở khớp vai trước khi tập qua đầu.",
+    cue: "Giữ sườn hạ xuống trong khi vòng xoay lớn dần.",
+  },
+  "Light dumbbell press ramp sets": {
+    name: "Đẩy tạ nhẹ tăng dần",
+    duration: "1-2 hiệp nhẹ",
+    intent: "Làm quen đường đẩy qua đầu trước các hiệp chính.",
+    cue: "Bắt đầu đủ nhẹ để mỗi lần kết thúc đều thẳng trục.",
+  },
+  "Hip hinge holds": {
+    name: "Giữ tư thế gập hông",
+    duration: "3 x 5 giây",
+    intent: "Tìm tư thế gập hông vững cho động tác kéo.",
+    cue: "Đẩy hông ra sau và giữ lưng thẳng dài.",
+  },
+  "Light one-arm row ramp sets": {
+    name: "Kéo một tay nhẹ tăng dần",
+    duration: "8 lần mỗi bên",
+    intent: "Đánh thức cơ lưng xô và lực căng lưng trên.",
+    cue: "Dừng với khuỷu tay sát sườn mà không xoay người.",
+  },
+  "Dead hangs": {
+    name: "Treo xà thả lỏng",
+    duration: "2 x 10-20 giây",
+    intent: "Chuẩn bị lực nắm và tư thế vai khi treo.",
+    cue: "Để tay duỗi thẳng trong khi sườn vẫn kiểm soát.",
+  },
+  "Scapular pull-ups": {
+    name: "Kéo xà xương bả vai",
+    duration: "6-8 lần",
+    intent: "Kích hoạt lần kéo đầu tiên từ xương bả vai.",
+    cue: "Kéo vai ra xa tai trước khi gập khuỷu tay.",
+  },
+  "Bodyweight squats": {
+    name: "Squat không tạ",
+    duration: "10-12 lần",
+    intent: "Làm nóng gối, hông và độ sâu squat.",
+    cue: "Dừng nhẹ ở đáy và giữ bàn chân chắc.",
+  },
+  "Reverse lunges": {
+    name: "Chùng chân ra sau",
+    duration: "6 mỗi bên",
+    intent: "Chuẩn bị kiểm soát một chân và ổn định hông.",
+    cue: "Bước lùi nhẹ nhàng và đạp qua chân trước.",
+  },
+  "Hip hinges": {
+    name: "Gập hông",
+    duration: "10 lần",
+    intent: "Tập đường đi của hông trước khi gập có tạ.",
+    cue: "Đưa hông ra sau trong khi cẳng chân gần như thẳng đứng.",
+  },
+  "Glute bridges": {
+    name: "Cầu mông",
+    duration: "10-12 lần",
+    intent: "Kích hoạt cơ mông trước khi tập gập hông hoặc squat.",
+    cue: "Hơi gập xương chậu và dừng ở đỉnh.",
+  },
+  "Dead bugs": {
+    name: "Bài con bọ",
+    duration: "6 mỗi bên",
+    intent: "Phối hợp hơi thở với kiểm soát thân.",
+    cue: "Giữ lưng dưới yên trong khi tay chân di chuyển.",
+  },
+  "Plank breathing": {
+    name: "Plank kết hợp thở",
+    duration: "20-30 giây",
+    intent: "Xây dựng độ siết mà bạn vẫn thở được.",
+    cue: "Đẩy sàn ra xa và thở nhỏ, có kiểm soát.",
+  },
+  "Marching high knees": {
+    name: "Nâng cao gối tại chỗ",
+    duration: "30 giây",
+    intent: "Tăng nhiệt độ cơ thể mà không vội vàng.",
+    cue: "Giữ thân thẳng và tiếp đất nhẹ dưới hông.",
+  },
+  "Easy mountain climbers": {
+    name: "Leo núi nhẹ nhàng",
+    duration: "30 giây",
+    intent: "Chuẩn bị bàn tay, thân và hơi thở.",
+    cue: "Di chuyển ở tốc độ mà hông không nảy lên.",
+  },
+  "First exercise ramp-up set": {
+    name: "Hiệp khởi động bài đầu tiên",
+    duration: "1-2 hiệp",
+    intent: "Bắc cầu từ khởi động sang hiệp chính đầu tiên.",
+    cue: "Dùng khoảng nửa sức, rồi nghỉ trước khi ghi hiệp một.",
+  },
+};
+
+export function warmupDrillGuide(name: string, lang: CueLang = "en"): WarmupDrillGuide {
+  if (lang === "vi") {
+    return (
+      VI_WARMUP_GUIDES[name] ?? {
+        name,
+        duration: "30-45 giây",
+        intent: "Chuẩn bị động tác mà không gây mệt.",
+        cue: "Giữ nhẹ nhàng và có kiểm soát.",
+      }
+    );
+  }
   return {
     name,
     ...(WARMUP_GUIDES[name] ?? {
