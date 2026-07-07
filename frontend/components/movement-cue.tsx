@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import type { ExerciseOut } from "@/lib/api";
-import { movementGuide, movementLabel } from "@/lib/exercise-cues";
+import { type CueLang, movementGuide, movementLabel } from "@/lib/exercise-cues";
 
 type Pattern = NonNullable<ExerciseOut["pattern"]>;
 
@@ -125,7 +125,6 @@ function Rotate({
       {animate && vals ? (
         <animateTransform
           attributeName="transform"
-          attributeType="XML"
           type="rotate"
           dur={`${dur}s`}
           repeatCount="indefinite"
@@ -293,7 +292,6 @@ function Figure({ anim, animate }: { anim: MovementAnim; animate: boolean }) {
     <g>
       <animateTransform
         attributeName="transform"
-        attributeType="XML"
         type="translate"
         dur={`${anim.dur}s`}
         repeatCount="indefinite"
@@ -318,6 +316,10 @@ function MovementStage({ pattern }: { pattern: ExerciseOut["pattern"] }) {
       preserveAspectRatio="xMidYMid meet"
       aria-hidden="true"
     >
+      {/* soft accent wash behind the figure so it reads as a stage, not a void */}
+      <circle cx={100} cy={104} r={74} fill="var(--cue-accent)" opacity={0.07} />
+      <circle cx={100} cy={104} r={48} fill="var(--cue-accent)" opacity={0.06} />
+      {/* ground line + contact shadow keep the figure visually planted */}
       <line
         x1={40}
         y1={186}
@@ -328,12 +330,24 @@ function MovementStage({ pattern }: { pattern: ExerciseOut["pattern"] }) {
         strokeLinecap="round"
         opacity={0.5}
       />
+      <ellipse cx={102} cy={188} rx={30} ry={4.5} fill="var(--figure-main)" opacity={0.12}>
+        {/* breathe with the rep so the figure reads as loading/unloading */}
+        {!reduced && (
+          <animate
+            attributeName="rx"
+            dur={`${anim.dur}s`}
+            repeatCount="indefinite"
+            calcMode="spline"
+            keyTimes="0;0.5;1"
+            keySplines={SPLINES}
+            values="27;33;27"
+          />
+        )}
+      </ellipse>
       <Figure anim={anim} animate={!reduced} />
     </svg>
   );
 }
-
-type CueLang = "en" | "vi";
 
 const GUIDE_LABELS: Record<CueLang, { heading: string; tempo: string; setup: string; action: string; range: string }> = {
   en: { heading: "Movement guide", tempo: "tempo", setup: "Setup", action: "Action", range: "Range" },

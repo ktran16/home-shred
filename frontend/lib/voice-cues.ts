@@ -1,11 +1,11 @@
 import type { PlanExerciseOut } from "@/lib/api";
-import { exerciseInstructions, movementLabel } from "@/lib/exercise-cues";
+import { type CueLang, exerciseInstructions, movementLabel } from "@/lib/exercise-cues";
 
-// The voice-over text can be read in English or Vietnamese. The synthesized
-// voice itself stays whatever the browser picks (typically English) — only the
-// wording changes. Vietnamese cue text lives alongside the English source in
-// exercise-cues.ts so the on-screen guide and the spoken cue stay in sync.
-export type CoachLang = "en" | "vi";
+// The voice-over text can be read in English or Vietnamese. Vietnamese cue text
+// lives alongside the English source in exercise-cues.ts so the on-screen guide
+// and the spoken cue stay in sync — CoachLang is the same type, re-exported
+// under the name the workout runner uses.
+export type CoachLang = CueLang;
 
 export function exerciseVoiceCue(
   pe: PlanExerciseOut,
@@ -26,6 +26,11 @@ export function exerciseVoiceCue(
     : `${sets} sets. Target ${pe.target_reps_min} to ${pe.target_reps_max} reps. Rest ${pe.rest_seconds} seconds.`;
   const cues = instructions.length > 0 ? `Cues. ${instructions.join(" ")}` : "";
   return `${pe.exercise.name}. ${label}. ${prescription} ${cues}`.trim();
+}
+
+/** URL of the server-rendered audio for a cue — used to play and to pre-generate. */
+export function ttsUrl(text: string, lang: CoachLang): string {
+  return `/api/tts?lang=${lang}&text=${encodeURIComponent(text)}`;
 }
 
 export function restStartedCue(seconds: number, lang: CoachLang = "en"): string {

@@ -29,7 +29,6 @@ body {
 /* Per-pattern accent palette consumed by the MovementCue SVG figure. */
 .motion-cue {
   --cue-accent: #10b981;
-  --cue-path: #0ea5e9;
   --figure-main: #18181b;
   --figure-muted: #52525b;
 }
@@ -37,26 +36,26 @@ body {
 .motion-cue[data-pattern="vertical_push"],
 .motion-cue[data-pattern="vertical_pull"] {
   --cue-accent: #0ea5e9;
-  --cue-path: #6366f1;
 }
 
 .motion-cue[data-pattern="squat"],
 .motion-cue[data-pattern="hinge"] {
   --cue-accent: #f59e0b;
-  --cue-path: #10b981;
 }
 
 .motion-cue[data-pattern="core"] {
   --cue-accent: #8b5cf6;
-  --cue-path: #14b8a6;
 }
 
 .motion-cue[data-pattern="conditioning"] {
   --cue-accent: #ef4444;
-  --cue-path: #f59e0b;
 }
 
-.dark .motion-cue {
-  --figure-main: #f4f4f5;
-  --figure-muted: #d4d4d8;
+/* Dark mode here is media-query based (no `.dark` class is ever set), so the
+   figure colors must flip the same way or the figure vanishes on the dark card. */
+@media (prefers-color-scheme: dark) {
+  .motion-cue {
+    --figure-main: #f4f4f5;
+    --figure-muted: #d4d4d8;
+  }
 }

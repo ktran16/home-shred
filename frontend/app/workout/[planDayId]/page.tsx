@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MovementCue } from "@/components/movement-cue";
 import { PoseRepCounter } from "@/components/pose-rep-counter";
@@ -41,10 +41,12 @@ import {
   pickCoachVoice,
   restCompleteCue,
   restStartedCue,
+  ttsUrl,
 } from "@/lib/voice-cues";
 import {
   readinessRecommendation,
   readinessVoiceCue,
+  sessionCueTexts,
   warmupForExercises,
   warmupVoiceCue,
   type Readiness,
@@ -87,9 +89,28 @@ function Runner({ day }: { day: PlanDayOut }) {
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [impression, setImpression] = useState<SessionImpression | null>(null);
-  const recommendation = readinessRecommendation(readiness);
-  const warmup = warmupForExercises(day.exercises);
-  const summary = buildSessionSummary(loggedSets);
+  const recommendation = useMemo(() => readinessRecommendation(readiness), [readiness]);
+  const warmup = useMemo(() => warmupForExercises(day.exercises), [day.exercises]);
+  const summary = useMemo(() => buildSessionSummary(loggedSets), [loggedSets]);
+
+  // Pre-generate this session's cue audio in the background so every later
+  // play is an instant cache hit — no live synthesis mid-workout. Re-runs when
+  // the wording changes (language, readiness adjustments, suggested targets).
+  const { prewarm, lang: coachLang } = voice;
+  useEffect(() => {
+    const controller = new AbortController();
+    void prewarm(
+      sessionCueTexts({
+        exercises: day.exercises,
+        targets,
+        recommendation,
+        warmupDrills: warmup,
+        lang: coachLang,
+      }),
+      controller.signal,
+    );
+    return () => controller.abort();
+  }, [prewarm, day.exercises, targets, recommendation, warmup, coachLang]);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -485,7 +506,7 @@ function useVoiceCoach() {
     // fall back to the browser engine if the endpoint is unavailable (TTS disabled,
     // voice model missing, or offline).
     audio.onerror = () => speakBrowser(text);
-    audio.src = `/api/tts?lang=${lang}&text=${encodeURIComponent(text)}`;
+    audio.src = ttsUrl(text, lang);
     void audio.play().catch(() => speakBrowser(text));
   };
 
@@ -494,7 +515,37 @@ function useVoiceCoach() {
     audioRef.current?.pause();
   };
 
-  return { enabled, setEnabled, supported, speak, stop, lang, setLang };
+  // Ask the server to render each cue ahead of time (sequentially, so a burst
+  // of Piper synthesis never competes with itself for CPU). Fetching the body
+  // also lands the WAV in the browser HTTP cache. A 503 means TTS is off or the
+  // voice model is missing — stop warming; speak() will use the browser voice.
+  const warmedRef = useRef<Set<string>>(new Set());
+  const ttsUnavailableRef = useRef(false);
+  const prewarm = useCallback(
+    async (texts: string[], signal?: AbortSignal) => {
+      if (ttsUnavailableRef.current) return;
+      for (const text of texts) {
+        if (signal?.aborted) return;
+        const url = ttsUrl(text, lang);
+        if (warmedRef.current.has(url)) continue;
+        try {
+          const res = await fetch(url, { signal });
+          if (res.status === 503) {
+            ttsUnavailableRef.current = true;
+            return;
+          }
+          if (!res.ok) continue;
+          await res.arrayBuffer();
+          warmedRef.current.add(url);
+        } catch {
+          return; // aborted or offline — stop quietly, playback has its own fallback
+        }
+      }
+    },
+    [lang],
+  );
+
+  return { enabled, setEnabled, supported, speak, stop, prewarm, lang, setLang };
 }
 
 function VoiceCoachControls({ voice }: { voice: ReturnType<typeof useVoiceCoach> }) {

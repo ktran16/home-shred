@@ -1,6 +1,12 @@
-import type { PlanExerciseOut } from "@/lib/api";
+import type { PlanExerciseOut, SuggestedTargetOut } from "@/lib/api";
 import { warmupDrillGuide } from "@/lib/exercise-cues";
-import type { CoachLang } from "@/lib/voice-cues";
+import {
+  COACH_STRINGS,
+  type CoachLang,
+  exerciseVoiceCue,
+  restCompleteCue,
+  restStartedCue,
+} from "@/lib/voice-cues";
 
 type Pattern = NonNullable<PlanExerciseOut["exercise"]["pattern"]>;
 
@@ -94,6 +100,39 @@ export function warmupVoiceCue(drills: string[], lang: CoachLang = "en"): string
   return `${heading} ${drills
     .map((drill, index) => `${index + 1}. ${warmupDrillGuide(drill, lang).name}.`)
     .join(" ")}`;
+}
+
+/**
+ * Every phrase the voice coach can speak during this session, deduped.
+ * The runner pre-generates these against /api/tts at session start so playback
+ * is always an instant cache hit — no live synthesis mid-workout.
+ */
+export function sessionCueTexts(opts: {
+  exercises: PlanExerciseOut[];
+  targets: Record<number, SuggestedTargetOut>;
+  recommendation: ReadinessRecommendation;
+  warmupDrills: string[];
+  lang: CoachLang;
+}): string[] {
+  const { exercises, targets, recommendation, warmupDrills, lang } = opts;
+  const texts = new Set<string>([
+    COACH_STRINGS[lang].enabled,
+    COACH_STRINGS[lang].ready,
+    warmupVoiceCue(warmupDrills, lang),
+    readinessVoiceCue(recommendation, lang),
+    restCompleteCue(lang),
+  ]);
+  for (const pe of exercises) {
+    const sets = Math.max(
+      1,
+      (targets[pe.exercise_id]?.sets ?? pe.sets) - recommendation.setReduction,
+    );
+    texts.add(exerciseVoiceCue(pe, sets, lang));
+    if (!pe.is_conditioning) {
+      texts.add(restStartedCue(pe.rest_seconds + recommendation.restBonus, lang));
+    }
+  }
+  return [...texts];
 }
 
 export function readinessVoiceCue(

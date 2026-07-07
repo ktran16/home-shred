@@ -4,6 +4,7 @@ import type { PlanExerciseOut } from "@/lib/api";
 import {
   readinessRecommendation,
   readinessVoiceCue,
+  sessionCueTexts,
   warmupForExercises,
   warmupVoiceCue,
 } from "@/lib/workout-assist";
@@ -65,5 +66,34 @@ describe("workout assist helpers", () => {
     expect(readinessVoiceCue(recommendation, "vi")).toContain("Mức sẵn sàng 100 phần trăm");
     expect(readinessVoiceCue(recommendation, "vi")).toContain("Sẵn sàng");
     expect(warmupVoiceCue(["Dead bugs"], "vi")).toBe("Khởi động. 1. Bài con bọ.");
+  });
+
+  it("collects every session cue for pre-generation, applying targets and readiness", () => {
+    const push = pe("horizontal_push");
+    const squat = { ...pe("squat"), id: 2, exercise_id: 2 };
+    // "Moderate readiness": drop one set, add 15s rest.
+    const recommendation = readinessRecommendation({ energy: 3, sleep: 3, soreness: 3 });
+    const texts = sessionCueTexts({
+      exercises: [push, squat],
+      targets: {
+        2: { exercise_id: 2, sets: 5, reps_min: 8, reps_max: 12, suggested_weight_kg: 40 },
+      },
+      recommendation,
+      warmupDrills: ["Dead bugs"],
+      lang: "en",
+    });
+
+    // Suggested target (5 sets) minus the readiness reduction (1) wins over plan sets.
+    expect(texts.some((t) => t.startsWith("Test. Squat. 4 sets."))).toBe(true);
+    // No target for the push exercise: plan sets (3) minus 1.
+    expect(texts.some((t) => t.startsWith("Test. Push. 2 sets."))).toBe(true);
+    // Identical rest prescriptions dedupe to a single phrase, with the bonus applied.
+    expect(texts.filter((t) => t.startsWith("Set logged."))).toEqual([
+      "Set logged. Rest 75 seconds.",
+    ]);
+    expect(texts).toContain(warmupVoiceCue(["Dead bugs"], "en"));
+    expect(texts).toContain(readinessVoiceCue(recommendation, "en"));
+    expect(texts).toContain("Rest complete. Start your next set.");
+    expect(texts).toContain("Voice coach enabled.");
   });
 });
