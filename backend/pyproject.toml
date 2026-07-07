@@ -18,6 +18,21 @@ dependencies = [
     "piper-tts>=1.2,<2",
 ]
 
+[project.optional-dependencies]
+# Higher-quality Vietnamese voice coach (F5-TTS). Heavy (torch + f5-tts) and
+# deliberately NOT installed in the runtime image — install on a host that
+# pre-generates cues: `uv pip install -e '.[f5]'` (or the isolated venv used by
+# `make tts-f5`). Without it, tts_vi_engine="f5" silently falls back to Piper.
+f5 = [
+    # torchaudio >=2.9 hard-requires torchcodec, whose prebuilt libs pull CUDA
+    # (libnvrtc) and fail to load on CPU-only hosts; 2.4.x keeps the native
+    # soundfile backend. Pin the pair to that known-good CPU range.
+    "torch>=2.2,<2.5",
+    "torchaudio>=2.2,<2.5",
+    "f5-tts>=1.1",
+    "soundfile>=0.12",
+]
+
 [dependency-groups]
 dev = [
     "ruff>=0.8",

@@ -15,9 +15,9 @@ fetch() {
   curl -fsSL -o "$TARGET/$name" "$1"
 }
 
-# English: en_US-amy-medium · Vietnamese: vi_VN-vais1000-medium
-fetch "$BASE/en/en_US/amy/medium/en_US-amy-medium.onnx"
-fetch "$BASE/en/en_US/amy/medium/en_US-amy-medium.onnx.json"
+# English: en_US-lessac-high · Vietnamese: vi_VN-vais1000-medium
+fetch "$BASE/en/en_US/lessac/high/en_US-lessac-high.onnx"
+fetch "$BASE/en/en_US/lessac/high/en_US-lessac-high.onnx.json"
 fetch "$BASE/vi/vi_VN/vais1000/medium/vi_VN-vais1000-medium.onnx"
 fetch "$BASE/vi/vi_VN/vais1000/medium/vi_VN-vais1000-medium.onnx.json"
 

@@ -14,8 +14,17 @@ All run on-device or in-process — no cloud, CPU-only friendly:
 - **Barcode food lookup** (`/nutrition`): scan a barcode → macros (via Open Food Facts).
 - **Food log** (`/nutrition`): manual/barcode entries with daily totals and remaining macros.
 - **Voice coach** (`/workout`): server-side neural TTS (Piper) reads cues in English or
-  Vietnamese. Download the voice models once with `make tts-voices` (dev) /
+  Vietnamese. The workout runner pre-generates a session's cue audio at start, so playback
+  is instant. Download the voice models once with `make tts-voices` (dev) /
   `make prod-tts-voices` (prod); without them it falls back to browser speech.
+  - *Optional, higher-quality Vietnamese*: F5-TTS (a neural voice-cloning model) sounds far
+    less robotic than Piper's VI voice. Install the extras on the host that generates cues
+    (`cd backend && uv pip install -e '.[f5]'`), download the model (`make tts-f5`), and set
+    `TTS_VI_ENGINE=f5`. It's heavy (torch) and kept out of the runtime image; if the extras
+    or model are missing it silently falls back to Piper. The cloned voice defaults to a
+    bundled Southern-Vietnamese female clip from the VIVOS corpus (CC BY-NC-SA 4.0 — personal/
+    non-commercial use; see `backend/assets/ATTRIBUTION.md`). Swap `media/tts/f5/ref.wav` (and
+    `TTS_F5_REF_TEXT`) to change the voice.
 
 What's next is brainstormed in `SPEC.md §19` (ops hardening → PWA/offline → plan lifecycle).
 

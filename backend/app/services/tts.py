@@ -38,6 +38,17 @@ def voice_for_lang(lang: str) -> str:
     return settings.tts_voice_vi if lang == "vi" else settings.tts_voice_en
 
 
+def _use_f5(lang: str) -> bool:
+    """True when Vietnamese should be synthesized by the optional F5 engine."""
+    return lang == "vi" and get_settings().tts_vi_engine == "f5"
+
+
+def _piper_path(lang: str, text: str) -> Path:
+    settings = get_settings()
+    key = cache_key(voice_for_lang(lang), text, settings.tts_length_scale)
+    return _cache_dir() / f"{key}.wav"
+
+
 def _voices_dir() -> Path:
     return Path(get_settings().media_dir) / _SUBDIR / "voices"
 
@@ -46,9 +57,9 @@ def _cache_dir() -> Path:
     return Path(get_settings().media_dir) / _SUBDIR / "cache"
 
 
-def cache_key(voice: str, text: str) -> str:
-    """Stable cache filename stem for a (voice, text) pair."""
-    return hashlib.sha256(f"{voice}\n{text}".encode()).hexdigest()
+def cache_key(voice: str, text: str, length_scale: float = 1.0) -> str:
+    """Stable cache filename stem for a (voice, synthesis params, text) tuple."""
+    return hashlib.sha256(f"{voice}\n{length_scale}\n{text}".encode()).hexdigest()
 
 
 def _model_paths(voice: str) -> tuple[Path, Path]:
@@ -77,22 +88,45 @@ def synthesize(text: str, lang: str = "en") -> Path:
     Raises ``TtsUnavailableError`` when TTS is off, text is empty, or the model is
     unavailable — the router translates that to a 503 so the client can fall back.
     """
-    if not get_settings().tts_enabled:
+    settings = get_settings()
+    if not settings.tts_enabled:
         raise TtsUnavailableError("TTS is disabled")
     text = (text or "").strip()[:MAX_TEXT_CHARS]
     if not text:
         raise TtsUnavailableError("empty text")
 
-    voice = voice_for_lang(lang)
-    out = _cache_dir() / f"{cache_key(voice, text)}.wav"
+    # Vietnamese via the optional F5 engine, when enabled. F5 audio is cached
+    # under its own key (model_tag + speed), so a transient F5 failure never
+    # poisons the slot with Piper audio: we simply serve Piper live this time and
+    # retry F5 next request. Once F5 succeeds the phrase is cached in F5 quality.
+    if _use_f5(lang):
+        from app.services import tts_f5
+
+        f5_out = _cache_dir() / f"{cache_key(tts_f5.model_tag(), text, settings.tts_f5_speed)}.wav"
+        if f5_out.exists():
+            return f5_out
+        f5_out.parent.mkdir(parents=True, exist_ok=True)
+        f5_tmp = f5_out.with_suffix(".wav.tmp")
+        try:
+            tts_f5.synthesize_to(text, f5_tmp)
+            f5_tmp.replace(f5_out)  # publish atomically
+            return f5_out
+        except tts_f5.F5Unavailable:
+            f5_tmp.unlink(missing_ok=True)  # fall through to Piper
+
+    out = _piper_path(lang, text)
     if out.exists():
         return out
-
-    piper_voice = _load_voice(voice)
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(".wav.tmp")
+
+    piper_voice = _load_voice(voice_for_lang(lang))
+    from piper import SynthesisConfig  # lazy for the same reason as _load_voice
+
     with wave.open(str(tmp), "wb") as wav_file:
         # synthesize_wav writes a complete WAV (headers + samples) for the whole text.
-        piper_voice.synthesize_wav(text, wav_file)
+        piper_voice.synthesize_wav(
+            text, wav_file, syn_config=SynthesisConfig(length_scale=settings.tts_length_scale)
+        )
     tmp.replace(out)  # publish atomically so a concurrent reader never sees a partial file
     return out

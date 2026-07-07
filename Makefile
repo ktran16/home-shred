@@ -12,14 +12,14 @@ SEED        := python -m app.seed.seed_exercises
 
 .DEFAULT_GOAL := help
 
-PIPER_VOICES := en/en_US/amy/medium/en_US-amy-medium.onnx \
-                en/en_US/amy/medium/en_US-amy-medium.onnx.json \
+PIPER_VOICES := en/en_US/lessac/high/en_US-lessac-high.onnx \
+                en/en_US/lessac/high/en_US-lessac-high.onnx.json \
                 vi/vi_VN/vais1000/medium/vi_VN-vais1000-medium.onnx \
                 vi/vi_VN/vais1000/medium/vi_VN-vais1000-medium.onnx.json
 PIPER_BASE   := https://huggingface.co/rhasspy/piper-voices/resolve/main
 
 .PHONY: help \
-        up down logs ps restart adminer tts-voices \
+        up down logs ps restart adminer tts-voices tts-f5 \
         prod-up prod-down prod-logs prod-ps prod-restart prod-build \
         prod-seed prod-reset prod-shell prod-psql prod-health prod-tts-voices
 
@@ -56,6 +56,10 @@ adminer: ## Print the Adminer URL
 
 tts-voices: ## Download Piper EN+VI voice models for dev (backend/media/tts/voices)
 	cd backend && sh scripts/fetch-piper-voices.sh media/tts/voices
+
+tts-f5: ## Download the optional high-quality Vietnamese F5-TTS model (backend/media/tts/f5)
+	cd backend && sh scripts/fetch-f5-voice.sh media/tts/f5
+	@echo "Next: install extras on this host (uv pip install -e '.[f5]') and set TTS_VI_ENGINE=f5"
 
 ## ----------------------------------------------------------------------------
 ## Prod — full stack (db + backend + frontend on :3006), reads .env.prod
