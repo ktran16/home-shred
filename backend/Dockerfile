@@ -31,6 +31,10 @@ COPY app ./app
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
+# Pre-create the media mount point owned by appuser: a fresh named volume copies this
+# ownership, otherwise Docker creates it root-owned and photo/TTS writes fail.
+RUN mkdir -p /app/media && chown appuser:appuser /app/media
+
 USER appuser
 EXPOSE 8000
 
