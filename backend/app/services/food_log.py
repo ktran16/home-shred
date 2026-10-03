@@ -94,21 +94,30 @@ class NutritionHistory:
 
 
 async def create_entry(db: AsyncSession, data: FoodLogIn) -> FoodLog:
-    entry = FoodLog(
-        date=data.date or date.today(),
-        name=data.name.strip(),
-        grams=data.grams,
-        kcal=data.kcal,
-        protein_g=data.protein_g,
-        carbs_g=data.carbs_g,
-        fat_g=data.fat_g,
-        source=data.source,
-        barcode=data.barcode,
-    )
-    db.add(entry)
+    return (await create_entries(db, [data]))[0]
+
+
+async def create_entries(db: AsyncSession, items: list[FoodLogIn]) -> list[FoodLog]:
+    """Insert several validated entries in one transaction (e.g. a logged meal template)."""
+    entries = [
+        FoodLog(
+            date=data.date or date.today(),
+            name=data.name.strip(),
+            grams=data.grams,
+            kcal=data.kcal,
+            protein_g=data.protein_g,
+            carbs_g=data.carbs_g,
+            fat_g=data.fat_g,
+            source=data.source,
+            barcode=data.barcode,
+        )
+        for data in items
+    ]
+    db.add_all(entries)
     await db.commit()
-    await db.refresh(entry)
-    return entry
+    for entry in entries:
+        await db.refresh(entry)
+    return entries
 
 
 async def daily_log(db: AsyncSession, day: date | None = None) -> DailyFoodLog:
@@ -211,9 +220,7 @@ async def nutrition_history(
     start_day = last_day - timedelta(days=days - 1)
 
     entries = list(
-        await db.scalars(
-            select(FoodLog).where(FoodLog.date >= start_day, FoodLog.date <= last_day)
-        )
+        await db.scalars(select(FoodLog).where(FoodLog.date >= start_day, FoodLog.date <= last_day))
     )
     entries_by_date: dict[date, list[FoodLog]] = defaultdict(list)
     for entry in entries:

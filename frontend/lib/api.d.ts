@@ -669,6 +669,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/nutrition/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Meal Templates */
+        get: operations["list_meal_templates_api_nutrition_templates_get"];
+        put?: never;
+        /**
+         * Create Meal Template
+         * @description Save a meal template from explicit items or from one day's log (SPEC §19.9 N2).
+         */
+        post: operations["create_meal_template_api_nutrition_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nutrition/templates/{template_id}/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log Meal Template
+         * @description Log every food in a template (× scale) as ordinary food-log rows.
+         */
+        post: operations["log_meal_template_api_nutrition_templates__template_id__log_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nutrition/templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Meal Template */
+        delete: operations["delete_meal_template_api_nutrition_templates__template_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/nutrition/adaptive": {
         parameters: {
             query?: never;
@@ -993,23 +1051,11 @@ export interface components {
             /** Fat Per 100G */
             fat_per_100g: number | null;
         };
-        /** FoodLogCopyDayIn */
-        FoodLogCopyDayIn: {
-            /**
-             * From Date
-             * Format: date
-             */
-            from_date: string;
-            /**
-             * To Date
-             * Format: date
-             */
-            to_date: string;
-        };
-        /** FoodLogIn */
-        FoodLogIn: {
-            /** Date */
-            date?: string | null;
+        /**
+         * FoodItemIn
+         * @description One food with frozen macros — a food-log entry or a meal-template item.
+         */
+        FoodItemIn: {
             /** Name */
             name: string;
             /** Grams */
@@ -1026,6 +1072,40 @@ export interface components {
             source: components["schemas"]["FoodLogSource"];
             /** Barcode */
             barcode?: string | null;
+        };
+        /** FoodLogCopyDayIn */
+        FoodLogCopyDayIn: {
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+        };
+        /** FoodLogIn */
+        FoodLogIn: {
+            /** Name */
+            name: string;
+            /** Grams */
+            grams: number | string;
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: number | string;
+            /** Carbs G */
+            carbs_g: number | string;
+            /** Fat G */
+            fat_g: number | string;
+            /** @default manual */
+            source: components["schemas"]["FoodLogSource"];
+            /** Barcode */
+            barcode?: string | null;
+            /** Date */
+            date?: string | null;
         };
         /** FoodLogOut */
         FoodLogOut: {
@@ -1156,6 +1236,64 @@ export interface components {
             readiness: string;
             /** Confidence */
             confidence: number;
+        };
+        /**
+         * MealTemplateIn
+         * @description Create a template from explicit `items` or by snapshotting the log on `from_date`.
+         */
+        MealTemplateIn: {
+            /** Name */
+            name: string;
+            /** Items */
+            items?: components["schemas"]["FoodItemIn"][] | null;
+            /** From Date */
+            from_date?: string | null;
+        };
+        /** MealTemplateItemOut */
+        MealTemplateItemOut: {
+            /** Id */
+            id: number;
+            /** Position */
+            position: number;
+            /** Name */
+            name: string;
+            /** Grams */
+            grams: string;
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: string;
+            /** Carbs G */
+            carbs_g: string;
+            /** Fat G */
+            fat_g: string;
+            source: components["schemas"]["FoodLogSource"];
+            /** Barcode */
+            barcode: string | null;
+        };
+        /** MealTemplateLogIn */
+        MealTemplateLogIn: {
+            /** Date */
+            date?: string | null;
+            /**
+             * Scale
+             * @default 1
+             */
+            scale: number | string;
+        };
+        /** MealTemplateOut */
+        MealTemplateOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Items */
+            items: components["schemas"]["MealTemplateItemOut"][];
         };
         /** MeasurementEntryIn */
         MeasurementEntryIn: {
@@ -3019,6 +3157,123 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DailyFoodLogOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_meal_templates_api_nutrition_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MealTemplateOut"][];
+                };
+            };
+        };
+    };
+    create_meal_template_api_nutrition_templates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MealTemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MealTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    log_meal_template_api_nutrition_templates__template_id__log_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MealTemplateLogIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyFoodLogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_meal_template_api_nutrition_templates__template_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -41,8 +41,9 @@ class FoodFactsOut(BaseModel):
     fat_per_100g: float | None
 
 
-class FoodLogIn(BaseModel):
-    date: date_type | None = None
+class FoodItemIn(BaseModel):
+    """One food with frozen macros — a food-log entry or a meal-template item."""
+
     name: str = Field(min_length=1, max_length=160)
     grams: Decimal = Field(gt=0, le=10000, decimal_places=1)
     kcal: int = Field(ge=0, le=20000)
@@ -67,6 +68,10 @@ class FoodLogIn(BaseModel):
             return None
         stripped = value.strip()
         return stripped or None
+
+
+class FoodLogIn(FoodItemIn):
+    date: date_type | None = None
 
 
 class FoodLogOut(BaseModel):
@@ -124,6 +129,65 @@ class DailyFoodLogOut(BaseModel):
     remaining_protein_g: Decimal | None
     remaining_carbs_g: Decimal | None
     remaining_fat_g: Decimal | None
+
+
+# rationale (SPEC §19.9 N2): ×0.25…×4 covers quarter to quadruple portions while a typo
+# can't log 40× a meal.
+TEMPLATE_SCALE_MIN = Decimal("0.25")
+TEMPLATE_SCALE_MAX = Decimal("4")
+
+
+class MealTemplateIn(BaseModel):
+    """Create a template from explicit `items` or by snapshotting the log on `from_date`."""
+
+    name: str = Field(min_length=1, max_length=80)
+    items: list[FoodItemIn] | None = Field(default=None, max_length=50)
+    from_date: date_type | None = None
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Name cannot be blank")
+        return stripped
+
+    @model_validator(mode="after")
+    def exactly_one_source(self) -> "MealTemplateIn":
+        if (self.items is None) == (self.from_date is None):
+            raise ValueError("Provide exactly one of items or from_date")
+        return self
+
+
+class MealTemplateItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    position: int
+    name: str
+    grams: Decimal
+    kcal: int
+    protein_g: Decimal
+    carbs_g: Decimal
+    fat_g: Decimal
+    source: FoodLogSource
+    barcode: str | None
+
+
+class MealTemplateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    created_at: datetime
+    items: list[MealTemplateItemOut]
+
+
+class MealTemplateLogIn(BaseModel):
+    date: date_type | None = None
+    scale: Decimal = Field(
+        default=Decimal("1"), ge=TEMPLATE_SCALE_MIN, le=TEMPLATE_SCALE_MAX, decimal_places=2
+    )
 
 
 class NutritionHistoryDayOut(BaseModel):

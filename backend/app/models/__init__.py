@@ -4,6 +4,7 @@ from app.models.exercise import Exercise
 from app.models.exercise_preference import ExercisePreference
 from app.models.food import Food
 from app.models.food_log import FoodLog
+from app.models.meal_template import MealTemplate, MealTemplateItem
 from app.models.measurement import MeasurementEntry, MeasurementType
 from app.models.metrics import BodyMetric, NutritionTarget
 from app.models.plan import Plan, PlanDay, PlanExercise
@@ -16,6 +17,8 @@ __all__ = [
     "ExercisePreference",
     "Food",
     "FoodLog",
+    "MealTemplate",
+    "MealTemplateItem",
     "UserProfile",
     "Plan",
     "PlanDay",

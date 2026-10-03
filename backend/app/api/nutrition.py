@@ -13,12 +13,15 @@ from app.schemas.nutrition import (
     FoodLogOut,
     FoodLogRecentOut,
     FoodLogTotalsOut,
+    MealTemplateIn,
+    MealTemplateLogIn,
+    MealTemplateOut,
     NutritionHistoryDayOut,
     NutritionHistoryOut,
     NutritionTargetOut,
     SuggestedTargets,
 )
-from app.services import food_log, food_lookup, food_search
+from app.services import food_log, food_lookup, food_search, meal_templates
 from app.services import nutrition as svc
 from app.services.nutrition import ADAPTIVE_MIN_DAYS_SPAN, ADAPTIVE_MIN_SAMPLES
 from app.services.profile import get_profile
@@ -129,6 +132,57 @@ async def delete_food_log(entry_id: int, db: AsyncSession = Depends(get_db)) -> 
     except food_log.FoodLogNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Food log entry not found") from exc
     return _daily_log_out(await food_log.daily_log(db, log_date))
+
+
+@router.get("/templates", response_model=list[MealTemplateOut])
+async def list_meal_templates(db: AsyncSession = Depends(get_db)) -> list[MealTemplateOut]:
+    templates = await meal_templates.list_templates(db)
+    return [MealTemplateOut.model_validate(t) for t in templates]
+
+
+@router.post("/templates", response_model=MealTemplateOut, status_code=201)
+async def create_meal_template(
+    data: MealTemplateIn, db: AsyncSession = Depends(get_db)
+) -> MealTemplateOut:
+    """Save a meal template from explicit items or from one day's log (SPEC §19.9 N2)."""
+    try:
+        if data.from_date is not None:
+            template = await meal_templates.create_from_day(db, data.name, data.from_date)
+        else:
+            template = await meal_templates.create_template(db, data.name, data.items or [])
+    except meal_templates.DuplicateMealTemplateError as exc:
+        raise HTTPException(
+            status_code=409, detail="A meal template with that name already exists"
+        ) from exc
+    except meal_templates.EmptyMealTemplateError as exc:
+        raise HTTPException(
+            status_code=422, detail="A meal template needs at least one food"
+        ) from exc
+    except food_log.FoodLogSourceDayEmptyError as exc:
+        raise HTTPException(status_code=404, detail="No food logged on source day") from exc
+    return MealTemplateOut.model_validate(template)
+
+
+@router.post("/templates/{template_id}/log", response_model=DailyFoodLogOut, status_code=201)
+async def log_meal_template(
+    template_id: int, data: MealTemplateLogIn, db: AsyncSession = Depends(get_db)
+) -> DailyFoodLogOut:
+    """Log every food in a template (× scale) as ordinary food-log rows."""
+    try:
+        entries = await meal_templates.log_template(db, template_id, data.date, data.scale)
+    except meal_templates.MealTemplateNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Meal template not found") from exc
+    except meal_templates.MealTemplateScaleError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _daily_log_out(await food_log.daily_log(db, entries[0].date))
+
+
+@router.delete("/templates/{template_id}", status_code=204)
+async def delete_meal_template(template_id: int, db: AsyncSession = Depends(get_db)) -> None:
+    try:
+        await meal_templates.delete_template(db, template_id)
+    except meal_templates.MealTemplateNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Meal template not found") from exc
 
 
 @router.get("/adaptive", response_model=AdaptiveTDEEOut)
