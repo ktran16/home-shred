@@ -21,7 +21,8 @@ PIPER_BASE   := https://huggingface.co/rhasspy/piper-voices/resolve/main
 .PHONY: help \
         up down logs ps restart adminer tts-voices tts-f5 \
         prod-up prod-down prod-logs prod-ps prod-restart prod-build \
-        prod-seed prod-reset prod-shell prod-psql prod-health prod-tts-voices
+        prod-seed prod-reset prod-shell prod-psql prod-health prod-tts-voices \
+        prod-backup prod-restore-test prod-restore
 
 ## ----------------------------------------------------------------------------
 ## Meta
@@ -30,7 +31,7 @@ PIPER_BASE   := https://huggingface.co/rhasspy/piper-voices/resolve/main
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| sort \
-		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
+		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 ## ----------------------------------------------------------------------------
 ## Dev — Postgres + Adminer only (backend/frontend run on host)
@@ -101,6 +102,15 @@ prod-tts-voices: ## Download Piper voice models into the prod backend media volu
 	  for f in $(PIPER_VOICES); do \
 	    curl -fsSL -o /app/media/tts/voices/$$(basename $$f) $(PIPER_BASE)/$$f; done' \
 	  && echo "Voices downloaded into the media volume."
+
+prod-backup: ## Dump prod db + media into ./backups (keeps 7 daily + 4 weekly)
+	sh scripts/prod-backup.sh
+
+prod-restore-test: ## Restore FILE=backups/.../x.dump into a throwaway db, print row counts
+	sh scripts/prod-restore.sh test "$(FILE)"
+
+prod-restore: ## DESTRUCTIVE: replace prod db + media with FILE=... (needs CONFIRM=yes)
+	CONFIRM="$(CONFIRM)" sh scripts/prod-restore.sh prod "$(FILE)"
 
 # WARNING: drops the pgdata volume (erases the DB), then rebuilds + re-seeds.
 # Required after any DB password change — Postgres only applies POSTGRES_PASSWORD

@@ -80,6 +80,23 @@ make prod-tts-voices
 The backend container applies Alembic migrations on start. Open
 `http://<host-ip>:3000` on the LAN, or `http://<tailscale-host>:3000` remotely.
 
+### Backups
+
+`make prod-backup` writes a dated set into `./backups/daily/` (gitignored): a
+`pg_dump -Fc` of the DB plus a tarball of the media volume (progress photos; TTS
+voices/cache are skipped — re-fetch with `make prod-tts-voices`). The first backup in
+any 7-day window is also hard-linked into `backups/weekly/`; rotation keeps 7 daily +
+4 weekly sets (`BACKUP_DIR`, `KEEP_DAILY`, `KEEP_WEEKLY` override). Daily via host cron:
+
+```cron
+15 3 * * * cd /path/to/selfhostedPT && make prod-backup >> backups/backup.log 2>&1
+```
+
+Check a backup with `make prod-restore-test FILE=backups/daily/homeshred-<stamp>.dump`:
+it restores into a throwaway `postgres:17` container and prints per-table row counts,
+never touching prod. `make prod-restore FILE=... CONFIRM=yes` runs that test, then
+**replaces** the prod DB and unpacks the matching media tarball.
+
 ## Make targets
 
 A root `Makefile` wraps both compose files; run `make help` for the full list.
@@ -89,6 +106,8 @@ make up            # dev: start postgres + adminer
 make prod-up       # prod: build + start db + backend + frontend
 make prod-seed     # prod: seed the exercise catalogue
 make prod-health   # prod: curl the frontend + /api/health
+make prod-backup   # prod: dump db + media into ./backups (rotated)
+make prod-restore-test FILE=backups/daily/<set>.dump  # prod: verify a backup in a scratch db
 make prod-reset    # prod: DESTRUCTIVE — drop db volume, rebuild, re-seed
 ```
 
