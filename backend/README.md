@@ -17,7 +17,8 @@ uv run uvicorn app.main:app --reload --port 8000
 ```
 
 > The dev DB is on host port **5434** (5432/5433 are used by other local
-> containers). The test suite uses a separate `homeshred_test` database.
+> containers). The test suite uses a separate `homeshred_test` database — create it once
+> after a fresh dev volume: `docker exec homeshred-dev-db-1 createdb -U homeshred homeshred_test`.
 
 ### Migrations
 

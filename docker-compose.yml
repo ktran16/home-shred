@@ -1,5 +1,9 @@
 # DEV compose: postgres + adminer only.
 # Backend and frontend run on the host (uv run / pnpm dev) during development.
+# Own project name → own volumes (homeshred-dev_pgdata): `down -v` here can never
+# touch the prod stack's data (SPEC §19.9 N1).
+name: homeshred-dev
+
 services:
   db:
     image: postgres:17

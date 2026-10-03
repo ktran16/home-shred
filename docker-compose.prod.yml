@@ -1,5 +1,10 @@
 # PROD: db + backend + frontend. Only the frontend port (3000) is published;
 # the backend stays internal to the compose network (SPEC §14). LAN/Tailscale only.
+# Explicit project name = the historical default (directory name), so the existing
+# selfhostedpt_pgdata / selfhostedpt_media volumes keep attaching even if the repo
+# dir is renamed. Dev uses `homeshred-dev`, so the two never share a volume.
+name: selfhostedpt
+
 services:
   db:
     image: postgres:17

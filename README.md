@@ -33,6 +33,7 @@ What's next is brainstormed in `SPEC.md §19` (ops hardening → PWA/offline →
 ```bash
 # 1. Database (postgres on host port 5434 + adminer on :8080)
 docker compose up -d db
+docker exec homeshred-dev-db-1 createdb -U homeshred homeshred_test   # first run only (tests)
 
 # 2. Backend  (http://localhost:8000, docs at /docs)
 cd backend
@@ -52,6 +53,10 @@ make tts-voices
 ```
 
 The frontend proxies `/api/*` to the backend, so open `http://localhost:3000`.
+
+Dev compose runs as project `homeshred-dev` (volume `homeshred-dev_pgdata`); prod runs as
+`selfhostedpt` (volumes `selfhostedpt_pgdata` / `selfhostedpt_media`). They never share a
+volume, so `docker compose down -v` in dev cannot touch prod data.
 
 ## Tests & lint
 
