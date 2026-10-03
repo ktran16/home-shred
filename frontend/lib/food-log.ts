@@ -2,6 +2,7 @@ import type {
   DailyFoodLogOut,
   FoodLogIn,
   FoodLogRecentOut,
+  MealTemplateItemOut,
   NutritionHistoryOut,
 } from "@/lib/api";
 
@@ -124,6 +125,34 @@ export function nutritionHistoryRows(
 export function adherenceSummary(history: NutritionHistoryOut | null | undefined): string {
   if (!history || history.target_days === 0) return "No target";
   return `${history.adherence_pct}% (${history.adherent_days}/${history.target_days} days)`;
+}
+
+// Portion multipliers offered on the meal-templates card; the API accepts 0.25–4 (SPEC §19.9 N2).
+export const TEMPLATE_SCALES = [0.5, 1, 2] as const;
+
+export type MacroTotals = { kcal: number; protein_g: number; carbs_g: number; fat_g: number };
+
+/** Preview what logging a template × scale adds. Rounds per item like the backend does
+ * (kcal to whole numbers, macros to 0.1 g), so the preview matches the logged totals. */
+export function scaledTemplateTotals(
+  items: Pick<MealTemplateItemOut, "kcal" | "protein_g" | "carbs_g" | "fat_g">[],
+  scale = 1,
+): MacroTotals {
+  const totals = items.reduce(
+    (sum, item) => ({
+      kcal: sum.kcal + Math.round(item.kcal * scale),
+      protein_g: sum.protein_g + round1(Number(item.protein_g) * scale),
+      carbs_g: sum.carbs_g + round1(Number(item.carbs_g) * scale),
+      fat_g: sum.fat_g + round1(Number(item.fat_g) * scale),
+    }),
+    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+  );
+  return {
+    kcal: totals.kcal,
+    protein_g: round1(totals.protein_g),
+    carbs_g: round1(totals.carbs_g),
+    fat_g: round1(totals.fat_g),
+  };
 }
 
 function round1(value: number): number {

@@ -30,6 +30,7 @@ import {
   EMPTY_FOOD_DRAFT,
   adherenceSummary,
   draftToFoodLog,
+  hasLoggedFood,
   macroPercent,
   nutritionHistoryRows,
   recentFoodToLog,
@@ -37,6 +38,8 @@ import {
   todayIsoDate,
   type ManualFoodDraft,
 } from "@/lib/food-log";
+
+import { MealTemplatesCard } from "./meal-templates-card";
 
 function MacroCard({ label, grams, kcal, color }: { label: string; grams: number; kcal: number; color: string }) {
   return (
@@ -257,6 +260,12 @@ export default function NutritionPage() {
         onCopyDay={(fromDate) => copyDay.mutate(fromDate)}
         busy={addFood.isPending || deleteFood.isPending || copyDay.isPending}
         error={addFood.error?.message ?? deleteFood.error?.message ?? copyDay.error?.message}
+      />
+
+      <MealTemplatesCard
+        date={logDate}
+        canSaveDay={hasLoggedFood(foodLog.data)}
+        onFoodLogged={invalidateFoodLog}
       />
 
       <NutritionHistoryCard

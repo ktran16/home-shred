@@ -9,6 +9,7 @@ import {
   nutritionHistoryRows,
   recentFoodToLog,
   remainingLabel,
+  scaledTemplateTotals,
   todayIsoDate,
 } from "@/lib/food-log";
 
@@ -87,6 +88,22 @@ describe("food log helpers", () => {
       source: "barcode",
       barcode: "0123456789012",
     });
+  });
+
+  it("previews scaled template totals with per-item rounding like the backend", () => {
+    const items = [
+      { kcal: 300, protein_g: "10.0", carbs_g: "54.0", fat_g: "5.0" },
+      { kcal: 121, protein_g: "24.0", carbs_g: "2.5", fat_g: "1.5" },
+    ];
+    expect(scaledTemplateTotals(items)).toEqual({ kcal: 421, protein_g: 34, carbs_g: 56.5, fat_g: 6.5 });
+    // 121 × 1.5 = 181.5 → 182; 2.5 × 1.5 = 3.75 → 3.8; 1.5 × 1.5 = 2.25 → 2.3 (per item)
+    expect(scaledTemplateTotals(items, 1.5)).toEqual({
+      kcal: 632,
+      protein_g: 51,
+      carbs_g: 84.8,
+      fat_g: 9.8,
+    });
+    expect(scaledTemplateTotals([], 2)).toEqual({ kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
   });
 
   it("normalizes nutrition history for summaries and charts", () => {

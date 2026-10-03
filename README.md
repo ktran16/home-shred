@@ -13,6 +13,8 @@ All run on-device or in-process — no cloud, CPU-only friendly:
 - **Exercise search** (`/exercises`): "a hamstring exercise like an RDL".
 - **Barcode food lookup** (`/nutrition`): scan a barcode → macros (via Open Food Facts).
 - **Food log** (`/nutrition`): manual/barcode entries with daily totals and remaining macros.
+- **Meal templates** (`/nutrition`): save a day's foods under a name, then log them all into
+  any day in one tap (×0.5 / ×1 / ×2 portions). Each food lands as its own log entry.
 - **Voice coach** (`/workout`): server-side neural TTS (Piper) reads cues in English or
   Vietnamese. The workout runner pre-generates a session's cue audio at start, so playback
   is instant. Download the voice models once with `make tts-voices` (dev) /
